@@ -372,7 +372,15 @@ aside .hint { color: var(--muted); font-size: 12px; margin: 0; }
   const person = id => PEOPLE.find(p => p.id === id);
 
   // ---- données partagées (Supabase) ----
-  const sb = window.supabase.createClient(window.PLANNING_CONFIG.supabaseUrl, window.PLANNING_CONFIG.supabaseAnonKey);
+  const CFG = window.PLANNING_CONFIG || {};
+  if (!/^https:\/\/[a-z0-9-]+\.supabase\.co/.test(CFG.supabaseUrl || "") || /VOTRE/.test(CFG.supabaseAnonKey || "VOTRE")) {
+    document.getElementById("gate").hidden = false;
+    document.getElementById("login").hidden = true;
+    document.getElementById("login-btn").hidden = true;
+    document.getElementById("gate-msg").textContent = "Le planning n'est pas encore relié à sa base de données : renseignez l'adresse et la clé Supabase dans config.js.";
+    return;
+  }
+  const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
   const FIELDS = ["id", "title", "client", "dur", "date", "people", "done", "series", "rep"];
   const norm = r => ({ id: r.id, title: r.title, client: r.client || "", dur: Number(r.dur) || 1, date: r.date || null,
     people: Array.isArray(r.people) ? r.people : [], done: !!r.done, series: r.series || null, rep: r.rep || null });
