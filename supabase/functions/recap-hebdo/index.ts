@@ -5,7 +5,7 @@
 //   APP_URL         adresse du planning, ex. https://planning-equipe.vercel.app
 //   CRON_SECRET     valeur libre, identique à celle de supabase/cron.sql
 // SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY sont fournis automatiquement par Supabase.
-import { createClient } from "npm:@supabase/supabase-js@2.45.4";
+import { createClient } from "npm:@supabase/supabase-js@2.117.3";
 
 type Task = { id: string; title: string; client: string; dur: number; date: string | null; people: string[]; done: boolean };
 type Member = { id: string; name: string; email: string };
