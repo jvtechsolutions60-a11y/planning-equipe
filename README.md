@@ -2,7 +2,7 @@
 
 Planning partagé de Léo, Julien et Justine : qui fait quoi chaque semaine, tâches à prendre, tâches communes, tâches répétitives, et récap par email chaque vendredi à 12 h.
 
-- **Site** : une page web statique (`index.html`), hébergée gratuitement sur Vercel.
+- **Site** : une page web statique (`index.html`), hébergée gratuitement sur GitHub Pages.
 - **Données et connexion** : Supabase (gratuit). Connexion par lien envoyé par email, sans mot de passe. Seules les adresses de l'équipe ont accès.
 - **Emails** : Resend (gratuit jusqu'à 3 000 emails par mois), déclenché par Supabase.
 
@@ -25,16 +25,19 @@ Comptez environ 30 minutes la première fois. Les étapes marquées **(vous)** d
 
    Ces deux valeurs vont dans `config.js`. Elles peuvent être transmises à Claude : la clé « anon » est publique par conception, et l'accès est protégé par les règles de la base. Ne transmettez jamais la clé **service_role**.
 
-## Étape 3 : Vercel (vous)
+## Étape 3 : mise en ligne avec GitHub Pages (vous, un clic)
 
-1. Créez un compte sur [vercel.com](https://vercel.com) avec votre compte GitHub.
-2. **Add New > Project**, choisissez le dépôt `planning-equipe` et cliquez sur **Deploy**, sans rien changer : il n'y a pas d'étape de build.
-3. Notez l'adresse du site, par exemple `https://planning-equipe.vercel.app`.
+1. Sur GitHub, dans le dépôt `planning-equipe`, ouvrez **Settings > Pages**.
+2. Sous **Build and deployment > Branch**, choisissez `main` et `/ (root)`, puis cliquez sur **Save**.
+3. Une à deux minutes plus tard, le site est en ligne à l'adresse
+   `https://jvtechsolutions60-a11y.github.io/planning-equipe/`.
 4. De retour dans Supabase, ouvrez **Authentication > URL Configuration** :
-   - **Site URL** : l'adresse Vercel ;
+   - **Site URL** : `https://jvtechsolutions60-a11y.github.io/planning-equipe/` ;
    - **Redirect URLs** : ajoutez la même adresse.
 
 À ce stade, le planning fonctionne. Chacun ouvre l'adresse, saisit son email, clique sur le lien reçu, et c'est parti.
+
+Vercel reste possible à la place de GitHub Pages (Add New > Project, import du dépôt, Deploy) : remplacez alors l'adresse ci-dessus par celle de Vercel.
 
 ## Étape 4 : récap du vendredi midi (vous, puis Claude)
 
@@ -47,7 +50,7 @@ Comptez environ 30 minutes la première fois. Les étapes marquées **(vous)** d
    |---|---|
    | `RESEND_API_KEY` | la clé Resend |
    | `MAIL_FROM` | `Planning <planning@votre-domaine.fr>` |
-   | `APP_URL` | l'adresse Vercel |
+   | `APP_URL` | l'adresse du site |
    | `CRON_SECRET` | une longue suite de caractères au hasard |
 
 5. Dans **Edge Functions > Deploy a new function > Via Editor**, nommez la fonction `recap-hebdo`, collez le contenu de `supabase/functions/recap-hebdo/index.ts` et déployez. Dans les réglages de la fonction, **désactivez « Enforce JWT verification »** : la fonction est protégée par `CRON_SECRET`.

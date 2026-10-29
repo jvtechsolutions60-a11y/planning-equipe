@@ -2,7 +2,7 @@
 // Secrets à définir dans Supabase > Edge Functions > Secrets :
 //   RESEND_API_KEY  clé API Resend
 //   MAIL_FROM       expéditeur, ex. "Planning <planning@votre-domaine.fr>" (domaine vérifié dans Resend)
-//   APP_URL         adresse du planning, ex. https://planning-equipe.vercel.app
+//   APP_URL         adresse du planning, ex. https://jvtechsolutions60-a11y.github.io/planning-equipe/
 //   CRON_SECRET     valeur libre, identique à celle de supabase/cron.sql
 // SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY sont fournis automatiquement par Supabase.
 import { createClient } from "npm:@supabase/supabase-js@2.117.3";
