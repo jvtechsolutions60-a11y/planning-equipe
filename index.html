@@ -211,6 +211,28 @@ aside .hint { color: var(--muted); font-size: 12px; margin: 0; }
 .err { color: var(--warn); font-size: 13px; margin: 0; }
 
 @media (prefers-reduced-motion: reduce) { .ghost { transform: none; } }
+
+/* mode écran mural (?ecran=1) : lecture seule, gros caractères, pas de boutons */
+.clock { display: none; }
+html.ecran body { font-size: 17px; padding-block: 16px; }
+html.ecran #app { cursor: none; max-width: none; }
+html.ecran .sub, html.ecran .tools, html.ecran .start, html.ecran .tabs, html.ecran aside.backlog,
+html.ecran .legend, html.ecran .cell .add, html.ecran .filters, html.ecran #toast, html.ecran .notice-text { display: none !important; }
+html.ecran .clock { display: block; font-family: var(--f-mono); font-size: 44px; font-weight: 500; line-height: 1; }
+html.ecran h1 { font-size: 34px; }
+html.ecran .notice { background: none; padding: 0; justify-content: flex-end; }
+html.ecran .sync { font-size: 14px; color: var(--muted); }
+html.ecran .main { grid-template-columns: minmax(0, 1fr); }
+html.ecran .grid { min-width: 0; grid-template-columns: 170px repeat(5, minmax(0, 1fr)); }
+html.ecran .grid.solo .cell { min-height: 62vh; }
+html.ecran .cell { cursor: default; min-height: 150px; }
+html.ecran .task { cursor: default; font-size: 16px; padding: 7px 9px; }
+html.ecran .task .m, html.ecran .task .with { font-size: 13px; }
+html.ecran .dayhead { font-size: 14px; }
+html.ecran .dayhead b { font-size: 16px; }
+html.ecran .pname { font-size: 18px; }
+html.ecran .lrow input { display: none; }
+html.ecran .lrow { grid-template-columns: minmax(0, 1fr) auto auto; cursor: default; font-size: 17px; }
 </style>
 </head>
 <body>
@@ -235,6 +257,7 @@ aside .hint { color: var(--muted); font-size: 12px; margin: 0; }
       <h1>Planning de l'équipe</h1>
       <p class="sub">Cliquez dans une case pour ajouter une tâche, glissez une tâche pour l'attribuer.</p>
     </div>
+    <span class="clock" id="clock" aria-hidden="true"></span>
     <div class="tools">
       <span class="whoami">Connecté : <b id="me-name"></b> <button class="linkbtn" id="logout">Déconnexion</button></span>
       <span class="weeknav">
@@ -248,7 +271,7 @@ aside .hint { color: var(--muted); font-size: 12px; margin: 0; }
   </header>
 
   <div class="notice">
-    <span>Planning partagé : les modifications de chacun apparaissent en direct chez les autres.</span>
+    <span class="notice-text">Planning partagé : les modifications de chacun apparaissent en direct chez les autres.</span>
     <span class="sync" id="sync">À jour</span>
   </div>
 
@@ -385,17 +408,19 @@ aside .hint { color: var(--muted); font-size: 12px; margin: 0; }
   const norm = r => ({ id: r.id, title: r.title, client: r.client || "", dur: Number(r.dur) || 1, date: r.date || null,
     people: Array.isArray(r.people) ? r.people : [], done: !!r.done, series: r.series || null, rep: r.rep || null });
   const row = t => { const o = {}; FIELDS.forEach(f => { o[f] = f in t ? t[f] : null; }); o.client = o.client || ""; o.done = !!o.done; o.people = o.people || []; return o; };
-  let synced = new Map();
+  let synced = new Map(), lastOk = 0;
+  const hhmm = d => pad(d.getHours()) + ":" + pad(d.getMinutes());
   let state = { tasks: [], me: null };
 
   function setSync(txt, bad) { $("sync").textContent = txt; $("sync").style.color = bad ? "var(--warn)" : ""; }
 
   async function fetchTasks() {
     const { data, error } = await sb.from("tasks").select("*");
-    if (error) { setSync("Erreur de chargement", true); return; }
+    if (error) { setSync(lastOk ? "Pas de connexion depuis " + hhmm(new Date(lastOk)) : "Erreur de chargement", true); return; }
+    lastOk = Date.now();
     state.tasks = data.map(norm);
     synced = new Map(state.tasks.map(t => [t.id, JSON.stringify(row(t))]));
-    setSync("À jour");
+    setSync(SCREEN ? "Mis à jour à " + hhmm(new Date()) : "À jour");
     render();
   }
 
@@ -415,10 +440,20 @@ aside .hint { color: var(--muted); font-size: 12px; margin: 0; }
       setSync("À jour");
     }).catch(err => { setSync("Non enregistré : " + (err.message || "erreur"), true); fetchTasks(); });
   }
-  let monday = mondayOf(new Date());
-  let view = "grid", filter = "all";
-  try { view = localStorage.getItem(KEY + "-view") || ""; } catch (e) { view = ""; }
-  if (!view) view = window.matchMedia && matchMedia("(max-width: 700px)").matches ? "list" : "grid";
+  // mode écran mural : ?ecran=1, avec en option &qui=leo (une seule personne) et &vue=liste
+  const params = new URLSearchParams(location.search);
+  const SCREEN = params.has("ecran");
+  const QUI = person(params.get("qui")) ? params.get("qui") : null;
+  if (SCREEN) document.documentElement.classList.add("ecran");
+  // le week-end, l'écran montre déjà la semaine suivante
+  const currentMonday = () => { const d = new Date(); return SCREEN && (d.getDay() === 0 || d.getDay() === 6) ? addDays(mondayOf(d), 7) : mondayOf(d); };
+  let monday = currentMonday();
+  let view = "grid", filter = QUI || "all";
+  if (SCREEN) view = params.get("vue") === "liste" ? "list" : "grid";
+  else {
+    try { view = localStorage.getItem(KEY + "-view") || ""; } catch (e) { view = ""; }
+    if (!view) view = window.matchMedia && matchMedia("(max-width: 700px)").matches ? "list" : "grid";
+  }
 
   // annulation de la dernière action
   let undoData = null, toastTimer = null;
@@ -430,6 +465,22 @@ aside .hint { color: var(--muted); font-size: 12px; margin: 0; }
 
   const $ = id => document.getElementById(id);
   const grid = $("grid"), blist = $("blist");
+
+  if (SCREEN) {
+    if (QUI) { document.querySelector("#app h1").textContent = "Planning de " + person(QUI).name; document.title = "Planning de " + person(QUI).name; }
+    // lecture seule : aucun clic, glisser ou raccourci ne modifie le planning (la page de connexion reste utilisable)
+    ["click", "pointerdown", "keydown", "dblclick"].forEach(type => window.addEventListener(type, e => {
+      if (e.target.closest && e.target.closest("#gate")) return;
+      e.stopPropagation(); e.preventDefault();
+    }, true));
+    // l'écran reste allumé tant que la page est affichée (navigateurs récents)
+    let lock = null;
+    const keepAwake = async () => { try { if ("wakeLock" in navigator && document.visibilityState === "visible" && !lock) { lock = await navigator.wakeLock.request("screen"); lock.addEventListener("release", () => { lock = null; }); } } catch (_) {} };
+    keepAwake();
+    document.addEventListener("visibilitychange", keepAwake);
+    const tick = () => { $("clock").textContent = hhmm(new Date()); };
+    tick(); setInterval(tick, 15000);
+  }
 
   // sélecteurs de personnes
 
@@ -460,12 +511,15 @@ aside .hint { color: var(--muted); font-size: 12px; margin: 0; }
       html += `<div class="dayhead${iso(d) === todayIso ? " today" : ""}">${DAYS[i]}<b>${fmtShort(d)}</b></div>`;
     });
     const weekIsos = days.map(iso);
-    PEOPLE.forEach(p => {
+    const rows = QUI ? [person(QUI)] : PEOPLE;
+    grid.classList.toggle("solo", rows.length === 1);
+    rows.forEach(p => {
       const mine = state.tasks.filter(t => t.people.includes(p.id) && weekIsos.includes(t.date));
       const total = mine.reduce((s, t) => s + t.dur, 0);
       const pct = Math.min(100, total / WEEK_H * 100);
-      html += `<div class="person${p.id === state.me ? " is-me" : ""}" style="--pc:${p.color};--ps:${p.soft}">
-        <span class="pname"><span class="dot"></span>${p.name}${p.id === state.me ? ` <span class="you">(vous)</span>` : ""}</span>
+      const isMe = p.id === state.me && !SCREEN;
+      html += `<div class="person${isMe ? " is-me" : ""}" style="--pc:${p.color};--ps:${p.soft}">
+        <span class="pname"><span class="dot"></span>${p.name}${isMe ? ` <span class="you">(vous)</span>` : ""}</span>
         <span class="load">${durLabel(total)} / ${WEEK_H} h</span>
         <span class="bar${total > WEEK_H ? " over" : ""}"><i style="width:${pct}%"></i></span>
       </div>`;
@@ -494,11 +548,11 @@ aside .hint { color: var(--muted); font-size: 12px; margin: 0; }
   }
 
   function renderSummary(weekIsos) {
-    const wk = state.tasks.filter(t => t.people.length && weekIsos.includes(t.date));
+    const wk = state.tasks.filter(t => t.people.length && weekIsos.includes(t.date) && (!QUI || t.people.includes(QUI)));
     const done = wk.filter(t => t.done).length;
     const hours = wk.reduce((s, t) => s + t.dur, 0);
     const back = state.tasks.filter(t => !t.people.length || !t.date).length;
-    $("summary").innerHTML = `<span><b>${wk.length}</b> tâche${wk.length > 1 ? "s" : ""}</span><span><b>${done}</b> faite${done > 1 ? "s" : ""}</span><span><b>${wk.length - done}</b> restante${wk.length - done > 1 ? "s" : ""}</span><span><b>${durLabel(hours)}</b> prévues</span><span><b>${back}</b> à prendre</span>`;
+    $("summary").innerHTML = `<span><b>${wk.length}</b> tâche${wk.length > 1 ? "s" : ""}</span><span><b>${done}</b> faite${done > 1 ? "s" : ""}</span><span><b>${wk.length - done}</b> restante${wk.length - done > 1 ? "s" : ""}</span><span><b>${durLabel(hours)}</b> prévues</span>${SCREEN ? "" : `<span><b>${back}</b> à prendre</span>`}`;
   }
 
   function renderList(days) {
@@ -638,7 +692,7 @@ aside .hint { color: var(--muted); font-size: 12px; margin: 0; }
     if (add) { openForm({ people: [add.dataset.person], date: add.dataset.date, dur: 1 }); return; }
     if (e.target.classList && e.target.classList.contains("cell")) { openForm({ people: [e.target.dataset.person], date: e.target.dataset.date, dur: 1 }); return; }
     const tab = e.target.closest("[data-view]");
-    if (tab) { view = tab.dataset.view; try { localStorage.setItem(KEY + "-view", view); } catch (_) {} render(); return; }
+    if (tab && !SCREEN) { view = tab.dataset.view; try { localStorage.setItem(KEY + "-view", view); } catch (_) {} render(); return; }
     const chip = e.target.closest("[data-filter]");
     if (chip) { filter = chip.dataset.filter; render(); return; }
     const take = e.target.closest("[data-take]");
@@ -751,7 +805,22 @@ aside .hint { color: var(--muted); font-size: 12px; margin: 0; }
     let timer = null;
     channel = sb.channel("tasks-live")
       .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, () => { clearTimeout(timer); timer = setTimeout(() => saving.then(fetchTasks), 300); })
-      .subscribe();
+      // après une coupure (wifi, mise en veille), le direct se reconnecte seul : on relit tout pour ne rien rater
+      .subscribe(status => { if (status === "SUBSCRIBED" && lastOk) saving.then(fetchTasks); });
+
+    // filet de sécurité : relecture toutes les 2 minutes, au retour du réseau et quand la page redevient visible
+    const refresh = () => { if (document.visibilityState === "visible" && $("overlay").hidden && !drag) saving.then(fetchTasks); };
+    setInterval(refresh, 120000);
+    window.addEventListener("online", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    // passage au jour suivant : la colonne « aujourd'hui » avance, et l'écran mural suit la semaine en cours
+    let dayShown = iso(new Date());
+    setInterval(() => {
+      if (iso(new Date()) === dayShown) return;
+      dayShown = iso(new Date());
+      if (SCREEN) monday = currentMonday();
+      render(); refresh();
+    }, 30000);
   }
   sb.auth.onAuthStateChange((_evt, session) => { start(session); });
   sb.auth.getSession().then(({ data }) => start(data.session));
