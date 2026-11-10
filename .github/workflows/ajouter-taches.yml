@@ -13,10 +13,13 @@ jobs:
   ajouter:
     runs-on: ubuntu-latest
     steps:
+      # Node est déjà installé sur la machine GitHub : on ne récupère que les fichiers utiles, pour aller plus vite.
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          sparse-checkout: |
+            taches
+            scripts/ajouter-taches.mjs
+          sparse-checkout-cone-mode: false
       - run: node scripts/ajouter-taches.mjs
         env:
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
