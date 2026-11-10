@@ -36,7 +36,7 @@ async function inserer(ligne) {
     const txt = await r.text();
     if (r.ok) return JSON.parse(txt || "[]").length ? "ajoutée" : "déjà présente";
     const manque = FACULTATIFS.find(c => c in l && txt.includes("'" + c + "'"));
-    if (manque) { console.log("  (colonne « " + manque + " » absente en base, ignorée)"); delete l[manque]; continue; }
+    if (manque) { console.log("  (colonne « " + manque + " » absente en base, ignorée)"); if (manque === "notes" && l.notes) l.client = [l.client, l.notes].filter(Boolean).join(" · "); delete l[manque]; continue; }
     throw new Error("Supabase a refusé (" + r.status + ") : " + txt);
   }
 }
