@@ -351,6 +351,13 @@ html.ecran .lday h3 { font-size: 1.4rem; }
   </form>
   <button class="btn primary" form="login" type="submit" id="login-btn">Recevoir mon lien de connexion</button>
   <p class="err" id="login-err" role="alert" hidden></p>
+  <form id="code-form" novalidate hidden>
+    <label for="login-code">Code reçu par email</label>
+    <input type="text" id="login-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="10" placeholder="123456" aria-describedby="code-help code-err">
+    <p id="code-help">Pratique si l'email est lu sur un autre appareil (téléphone, autre PC) : tapez ici le code de l'email au lieu de cliquer sur le lien.</p>
+  </form>
+  <button class="btn primary" form="code-form" type="submit" id="code-btn" hidden>Se connecter avec le code</button>
+  <p class="err" id="code-err" role="alert" hidden></p>
 </main>
 
 <div class="wrap" id="app" hidden>

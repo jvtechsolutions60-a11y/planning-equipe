@@ -1084,7 +1084,20 @@
     const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } });
     $("login-btn").disabled = false;
     if (error) { $("login-err").textContent = "Envoi impossible : " + error.message; $("login-err").hidden = false; return; }
-    $("gate-msg").innerHTML = `<span class="ok">Lien envoyé à ${esc(email)}.</span> Ouvrez l'email et cliquez sur le lien pour arriver sur le planning.`;
+    $("gate-msg").innerHTML = `<span class="ok">Email envoyé à ${esc(email)}.</span> Cliquez sur le lien de l'email, ou tapez ci-dessous le code qu'il contient.`;
+    $("code-form").hidden = false; $("code-btn").hidden = false;
+    $("login-code").focus();
+  });
+  $("code-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const email = $("login-email").value.trim();
+    const token = $("login-code").value.replace(/\D/g, "");
+    $("code-err").hidden = true;
+    if (token.length < 6) { $("code-err").textContent = "Le code fait au moins 6 chiffres."; $("code-err").hidden = false; return; }
+    $("code-btn").disabled = true;
+    const { error } = await sb.auth.verifyOtp({ email, token, type: "email" });
+    $("code-btn").disabled = false;
+    if (error) { $("code-err").textContent = "Code refusé (faux ou expiré). Redemandez un email si besoin."; $("code-err").hidden = false; return; }
   });
   $("logout").addEventListener("click", async () => { await sb.auth.signOut(); location.reload(); });
 
