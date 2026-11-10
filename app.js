@@ -1127,10 +1127,10 @@
       // après une coupure (wifi, mise en veille), le direct se reconnecte seul : on relit tout pour ne rien rater
       .subscribe(status => { if (status === "SUBSCRIBED" && lastOk) saving.then(fetchTasks); });
 
-    // filet de sécurité : relecture toutes les 2 minutes, au retour du réseau et quand la page redevient visible
+    // filet de sécurité : relecture toutes les 30 secondes, au retour du réseau et quand la page redevient visible
     const refresh = () => { if (document.visibilityState === "visible" && !dlg && !drag && !kb) saving.then(fetchTasks); };
     setInterval(() => { if (navigator.onLine && localDiff().length) save(); }, 30000);
-    setInterval(refresh, 120000);
+    setInterval(refresh, 30000);
     window.addEventListener("online", refresh);
     document.addEventListener("visibilitychange", refresh);
     // passage au jour suivant : la colonne « aujourd'hui » avance, et l'écran mural suit la semaine en cours
