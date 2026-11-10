@@ -39,7 +39,7 @@ Comptez environ 30 minutes la première fois. Les étapes marquées **(vous)** d
 
 Vercel reste possible à la place de GitHub Pages (Add New > Project, import du dépôt, Deploy) : remplacez alors l'adresse ci-dessus par celle de Vercel.
 
-## Étape 4 : récap du vendredi midi (vous)
+## Étape 4 : récap du vendredi midi (désactivé depuis le 10/11/2026, remplacé par l'écran mural)
 
 GitHub envoie l'email chaque vendredi à 12 h (heure de Paris), depuis votre boîte Gmail (ou une boîte o2switch).
 
@@ -97,9 +97,18 @@ Mise en place, une fois :
 - **Coupure de connexion** : les modifications restent à l'écran et dans le navigateur (« N modifications en attente d'envoi ») et partent seules au retour du réseau, même après avoir fermé la page.
 - **Modifications simultanées** : seuls les champs modifiés sont envoyés. Si un collègue a changé la même tâche entre-temps, ses changements sont gardés et un message indique les champs où votre version l'a emporté.
 - **Historique** : une fois `supabase/fiabilite.sql` passé dans Supabase (SQL Editor > Run), la fiche de chaque tâche montre qui a modifié quoi et quand.
-- **Sauvegarde manuelle** : bouton « Télécharger une sauvegarde » en bas du planning (fichier JSON) et « Restaurer depuis un fichier ».
-- **Sauvegarde de nuit** (facultative) : créez les secrets GitHub `SUPABASE_SECRET_KEY` et `BACKUP_PASSWORD` ; chaque nuit, une copie chiffrée (fichier .7z protégé par ce mot de passe) est gardée 90 jours dans l'onglet **Actions > Sauvegarde de nuit**. Pour restaurer : ouvrir le .7z avec 7-Zip et le mot de passe, puis « Restaurer depuis un fichier ».
+- **Sauvegarde manuelle** : bouton « Télécharger une sauvegarde » en bas du planning (fichier JSON : tâches, clients et modèles ; ni l'historique ni la liste de l'équipe) et « Restaurer depuis un fichier ». Le fichier contient les adresses, téléphones et notes des clients en clair : à garder sur un ordinateur protégé.
+- **Sauvegarde de nuit** (facultative) : créez les secrets GitHub `SUPABASE_SECRET_KEY` et `BACKUP_PASSWORD` ; chaque nuit, une copie chiffrée des tâches, clients, modèles et de l'historique (fichier .7z protégé par ce mot de passe) est gardée 90 jours dans l'onglet **Actions > Sauvegarde de nuit**. Pour restaurer : ouvrir le .7z avec 7-Zip et le mot de passe, puis « Restaurer depuis un fichier ».
 - Le client Supabase est copié dans le dépôt (`vendor/`) : le planning ne dépend plus d'un serveur tiers au chargement.
+
+## Sécurité
+
+- **Restauration** : le fichier est vérifié en entier avant toute modification (format, identifiants, personnes, types, statuts, dates, heures, durées, doublons, 5 Mo et 5 000 tâches au plus). Une seule ligne douteuse et rien n'est appliqué.
+- **Affichage** : toute tâche (base, direct, fichier, copie locale) est nettoyée avant affichage ; textes et identifiants sont échappés.
+- **Politique de sécurité du contenu** (balise `meta` dans `index.html`) : seuls les scripts du site s'exécutent (le code est dans `app.js`, aucun script en ligne), connexions limitées à Supabase. GitHub Pages ne permet pas d'ajouter des en-têtes HTTP : `frame-ancestors` et les autres protections par en-tête demanderaient un autre hébergeur.
+- **Contrôles en base** : une fois `supabase/securite.sql` passé (SQL Editor > Run), la base refuse aussi les identifiants douteux, les durées hors 15 min à 70 h et les heures impossibles.
+- **Copie locale** : si le navigateur refuse de garder les modifications en attente (stockage plein ou désactivé), le planning l'affiche et demande de ne pas fermer la page.
+- La clé dans `config.js` est la clé publique de Supabase : la sécurité repose sur les règles de la base (`is_team()`). Ne jamais y mettre la clé secrète.
 
 ## Horaires et contrôles RH
 
@@ -152,7 +161,8 @@ La page suit le RGAA 4.1 (niveau AA) : contrastes vérifiés en thème clair et 
 
 | Fichier | Rôle |
 |---|---|
-| `index.html` | le planning |
+| `index.html` | le planning (structure et styles) |
+| `app.js` | le code du planning |
 | `config.js` | adresse et clé publique Supabase |
 | `supabase/schema.sql` | tables, sécurité, temps réel |
 | `scripts/recap-hebdo.mjs` | email du vendredi |
@@ -162,4 +172,5 @@ La page suit le RGAA 4.1 (niveau AA) : contrastes vérifiés en thème clair et 
 | `supabase/horaires.sql` | ajoute les heures de début et de fin |
 | `supabase/fiabilite.sql` | ajoute l'historique des modifications |
 | `supabase/interventions.sql` | ajoute types, statuts, clients, modèles et interventions sur plusieurs jours |
+| `supabase/securite.sql` | contrôles de format et de bornes sur les tâches |
 | `vendor/supabase-js-2.117.3.js` | client Supabase |
