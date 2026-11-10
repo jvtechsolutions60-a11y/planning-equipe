@@ -60,6 +60,10 @@ Le code est dans `scripts/recap-hebdo.mjs` et `.github/workflows/recap-hebdo.yml
 
 ---
 
+## Se connecter avec un code (email lu sur un autre appareil)
+
+Le lien de l'email ouvre le planning sur l'appareil où on lit l'email. Pour se connecter sur un autre appareil (PC de l'atelier, écran), on peut taper le code de l'email à la place. À faire une seule fois dans Supabase : **Authentication > Emails > Magic Link**, ajoutez dans le message la ligne `Votre code : {{ .Token }}`, puis **Save**. Ensuite : saisir son email sur le planning, ouvrir l'email sur son téléphone, taper le code.
+
 ## Utilisation au quotidien
 
 - **Ajouter une tâche** : clic dans la case d'une personne et d'un jour, bouton « Nouvelle tâche », ou ou le bouton « + Ajouter » de chaque case.
