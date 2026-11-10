@@ -1,0 +1,32 @@
+# Envoie à chaque membre de l'équipe le planning de la semaine suivante, le vendredi à 12 h (heure de Paris).
+# Deux horaires UTC couvrent l'heure d'été et l'heure d'hiver ; le script ne garde que le bon.
+# Pour tester : onglet Actions > « Récap du vendredi » > Run workflow.
+name: Récap du vendredi
+
+on:
+  schedule:
+    - cron: "0 10 * * 5"
+    - cron: "0 11 * * 5"
+  workflow_dispatch:
+    inputs:
+      seulement:
+        description: "Envoyer uniquement à cette adresse (laisser vide pour toute l'équipe)"
+        required: false
+
+jobs:
+  recap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-save nodemailer@6.9.16
+      - run: node scripts/recap-hebdo.mjs
+        env:
+          TRIGGER_SCHEDULE: ${{ github.event.schedule }}
+          ONLY_TO: ${{ github.event.inputs.seulement }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}

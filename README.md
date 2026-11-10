@@ -4,7 +4,7 @@ Planning partagé de Léo, Julien et Justine : qui fait quoi chaque semaine, tâ
 
 - **Site** : une page web statique (`index.html`), hébergée gratuitement sur GitHub Pages.
 - **Données et connexion** : Supabase (gratuit). Connexion par lien envoyé par email, sans mot de passe. Seules les adresses de l'équipe ont accès.
-- **Emails** : Resend (gratuit jusqu'à 3 000 emails par mois), déclenché par Supabase.
+- **Emails** : envoyés depuis une boîte o2switch, déclenchés chaque vendredi par GitHub Actions.
 
 Comptez environ 30 minutes la première fois. Les étapes marquées **(vous)** demandent votre compte ; pour le reste, Claude peut s'en charger.
 
@@ -39,15 +39,25 @@ Comptez environ 30 minutes la première fois. Les étapes marquées **(vous)** d
 
 Vercel reste possible à la place de GitHub Pages (Add New > Project, import du dépôt, Deploy) : remplacez alors l'adresse ci-dessus par celle de Vercel.
 
-## Étape 4 : récap du vendredi midi (vous, puis Claude)
+## Étape 4 : récap du vendredi midi (vous, 2 étapes)
 
-1. Créez un compte sur [resend.com](https://resend.com).
-2. **Domains > Add domain** : ajoutez le domaine de vos adresses (par exemple `jvtech.fr`) et créez chez votre hébergeur DNS les enregistrements indiqués. Sans domaine vérifié, Resend n'envoie qu'à votre propre adresse.
-3. **API Keys > Create** : créez une clé et gardez-la pour vous.
-4. Dans Supabase, ouvrez **Edge Functions > Secrets** et ajoutez :
+L'email part de votre boîte o2switch, et GitHub le déclenche chaque vendredi à 12 h (heure de Paris).
+
+1. **Une boîte email d'envoi** : dans cPanel o2switch, **Comptes de messagerie > Créer**, par exemple `planning@votre-domaine.fr`. Notez son mot de passe et le **serveur sortant (SMTP)** indiqué dans « Connect Devices » (port 465).
+2. **Les secrets GitHub** : ouvrez **Settings > Secrets and variables > Actions > New repository secret** et créez :
 
    | Nom | Valeur |
    |---|---|
+   | `SUPABASE_SECRET_KEY` | Supabase > Project Settings > API Keys > clé **secret** (`sb_secret_…`) |
+   | `SMTP_HOST` | le serveur sortant o2switch |
+   | `SMTP_USER` | l'adresse de la boîte, ex. `planning@votre-domaine.fr` |
+   | `SMTP_PASS` | son mot de passe |
+
+Pour tester sans attendre vendredi : onglet **Actions > Récap du vendredi > Run workflow**, en indiquant votre adresse dans le champ pour n'envoyer qu'à vous.
+
+Le code est dans `scripts/recap-hebdo.mjs` et `.github/workflows/recap-hebdo.yml`. Les fichiers `supabase/functions/recap-hebdo` et `supabase/cron.sql` sont une autre méthode (Resend), non utilisée.
+
+---|---|
    | `RESEND_API_KEY` | la clé Resend |
    | `MAIL_FROM` | `Planning <planning@votre-domaine.fr>` |
    | `APP_URL` | l'adresse du site |
@@ -86,5 +96,6 @@ curl -X POST "https://VOTRE-PROJET.supabase.co/functions/v1/recap-hebdo?force=1"
 | `index.html` | le planning |
 | `config.js` | adresse et clé publique Supabase |
 | `supabase/schema.sql` | tables, sécurité, temps réel |
-| `supabase/functions/recap-hebdo/index.ts` | email du vendredi |
-| `supabase/cron.sql` | déclenchement chaque vendredi |
+| `scripts/recap-hebdo.mjs` | email du vendredi |
+| `.github/workflows/recap-hebdo.yml` | déclenchement chaque vendredi à 12 h |
+| `.github/workflows/garder-supabase-actif.yml` | évite la mise en pause de Supabase |
