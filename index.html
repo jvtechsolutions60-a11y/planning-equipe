@@ -252,6 +252,21 @@ kbd { font-family: var(--f-mono); font-size: 0.75rem; border: 1px solid var(--co
 .cell.kb-target, .blist.kb-target { outline: 3px dashed var(--accent); outline-offset: -3px; background: var(--accent-soft) !important; }
 .task.grabbed { outline: 3px dashed var(--accent); outline-offset: 1px; }
 .task .h { font-family: var(--f-mono); font-weight: 600; color: var(--ink); }
+/* types et statuts d'intervention */
+textarea { border: 1px solid var(--control); background: var(--surface); border-radius: var(--radius); padding: 0.5rem 0.7rem; width: 100%; color: var(--ink); font: inherit; resize: vertical; }
+.kind { text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.6875rem; font-weight: 700; color: var(--muted); }
+.task.k-absence, .task.k-conge { background: repeating-linear-gradient(135deg, var(--cell) 0 6px, var(--surface) 6px 12px); border-style: dashed; }
+.task.k-formation { border-left-style: double; border-left-width: 0.5rem; }
+.task.k-interne { border-left-style: dashed; }
+.task .st { font-weight: 700; color: var(--accent); }
+.task.st-attente .st, .task.st-a_revoir .st { color: var(--warn); }
+.task.st-annulee .t { text-decoration: line-through; color: var(--muted); }
+.task.st-annulee { background: var(--cell); }
+.task .note-ico { color: var(--muted); }
+.cell.nowork { background: repeating-linear-gradient(135deg, var(--cell) 0 8px, var(--bg) 8px 16px); }
+.cell .daynote { font-size: 0.75rem; font-weight: 600; color: var(--muted); }
+.client-info a { color: var(--accent); font-weight: 600; }
+.client-info ul { margin: 0.25rem 0 0; padding-left: 1.1rem; }
 /* sauvegarde et historique */
 .data { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.25rem; border-top: 1px solid var(--line); padding-top: 1rem; }
 .data h2 { font-size: 1.05rem; }
@@ -449,12 +464,22 @@ html.ecran .lday h3 { font-size: 1.4rem; }
   <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="ftitle"><form class="modal" id="form" novalidate>
     <h2 id="ftitle">Nouvelle tâche</h2>
     <p class="req">Le champ marqué d'un astérisque (*) est obligatoire.</p>
+    <div class="field l2" id="f-model-row" hidden><label for="f-model">Partir d'un modèle</label>
+      <div class="qadd"><select id="f-model"><option value="">Aucun modèle</option></select><button type="button" class="btn" id="f-model-del" hidden>Supprimer ce modèle</button></div></div>
     <div class="field"><label for="f-title">Tâche *</label><input id="f-title" autocomplete="off" required aria-required="true" aria-describedby="ferr" placeholder="Ex. Installation réseau, devis…"></div>
-    <div class="field"><label for="f-client">Client ou projet (facultatif)</label><input id="f-client" autocomplete="off"></div>
+    <fieldset class="field l2" hidden><legend>Type</legend><div class="checks" id="f-kind"></div></fieldset>
+    <div class="field"><label for="f-client">Client ou projet (facultatif)</label><input id="f-client" autocomplete="off" list="clients-list" aria-describedby="f-client-info"><datalist id="clients-list"></datalist></div>
+    <div class="row2 l2" hidden>
+      <div class="field"><label for="f-adresse">Adresse du client</label><input id="f-adresse" autocomplete="off"></div>
+      <div class="field"><label for="f-tel">Téléphone du client</label><input id="f-tel" type="tel" autocomplete="off"></div>
+    </div>
+    <div class="hint2 client-info l2" id="f-client-info" hidden></div>
+    <label class="chk l2" hidden><input type="checkbox" id="f-distance">À distance (sans déplacement)</label>
     <div class="field"><label for="f-dur">Durée en heures</label><input type="number" id="f-dur" min="0.25" max="70" step="0.25" inputmode="decimal">
       <div class="durs" id="durs" role="group" aria-label="Durées rapides"><button type="button" data-dur="0.5">30 min</button><button type="button" data-dur="1">1 h</button><button type="button" data-dur="2">2 h</button><button type="button" data-dur="3.5">½ journée</button><button type="button" data-dur="7">1 journée</button></div></div>
     <fieldset class="field" aria-describedby="f-people-hint"><legend>Attribuée à</legend><div class="checks" id="f-people"></div><span class="hint2" id="f-people-hint">Cochez plusieurs personnes pour une tâche commune. Aucune case cochée : la tâche va dans la liste à prendre.</span></fieldset>
-    <div class="field"><label for="f-date">Jour</label><input type="date" id="f-date"></div>
+    <div class="field"><label for="f-date">Jour</label><input type="date" id="f-date" aria-describedby="f-date-hint"><span class="hint2" id="f-date-hint" hidden>Choisissez le nouveau jour, puis Enregistrer : l'intervention sera marquée « reportée ».</span></div>
+    <div class="field l2" hidden><label for="f-findate">Jusqu'au (intervention sur plusieurs jours, facultatif)</label><input type="date" id="f-findate" aria-describedby="f-findate-hint"><span class="hint2" id="f-findate-hint">La durée indiquée s'entend par jour. Les samedis et dimanches sont sautés.</span></div>
     <div class="row2" id="f-time-row" hidden>
       <div class="field"><label for="f-debut">Début (facultatif)</label><input type="time" id="f-debut" step="300" aria-describedby="f-time-hint"></div>
       <div class="field"><label for="f-fin">Fin (facultatif)</label><input type="time" id="f-fin" step="300" aria-describedby="f-time-hint"></div>
@@ -472,6 +497,8 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     </div>
     <p class="hint2" id="f-series" hidden></p>
     <label class="chk" id="f-done-wrap"><input type="checkbox" id="f-done">Tâche faite</label>
+    <div class="field l2" id="f-status-row" hidden><label for="f-status">Statut</label><select id="f-status"></select></div>
+    <div class="field l2" hidden><label for="f-notes">Notes internes</label><textarea id="f-notes" rows="2"></textarea></div>
     <details class="hist" id="f-hist" hidden><summary>Historique des modifications</summary><ul id="f-hist-list"></ul></details>
     <p class="err" id="ferr" role="alert" hidden></p>
     <div class="actions">
@@ -479,6 +506,8 @@ html.ecran .lday h3 { font-size: 1.4rem; }
         <button type="button" class="btn danger" id="f-del">Supprimer</button>
         <button type="button" class="btn danger" id="f-del-series">Supprimer la série à venir</button>
         <button type="button" class="btn" id="f-dup">Dupliquer</button>
+        <button type="button" class="btn" id="f-report">Reporter</button>
+        <button type="button" class="btn l2" id="f-save-model" hidden>Enregistrer comme modèle</button>
       </div>
       <div class="right">
         <button type="button" class="btn" id="f-cancel">Annuler</button>
@@ -494,10 +523,11 @@ html.ecran .lday h3 { font-size: 1.4rem; }
 <script>
 (function () {
   // base : heures par semaine prévues au contrat (35 = temps plein). mineur : true pour un salarié ou apprenti de moins de 18 ans (seuils plus stricts).
+  // jours : du lundi au vendredi, 1 = journée travaillée, 0.5 = demi-journée, 0 = non travaillé.
   const PEOPLE = [
-    { id: "leo", name: "Léo", color: "var(--p-leo)", soft: "var(--p-leo-soft)", base: 35, mineur: false },
-    { id: "julien", name: "Julien", color: "var(--p-julien)", soft: "var(--p-julien-soft)", base: 35, mineur: false },
-    { id: "justine", name: "Justine", color: "var(--p-justine)", soft: "var(--p-justine-soft)", base: 35, mineur: false }
+    { id: "leo", name: "Léo", color: "var(--p-leo)", soft: "var(--p-leo-soft)", base: 35, mineur: false, jours: [1, 1, 1, 1, 1] },
+    { id: "julien", name: "Julien", color: "var(--p-julien)", soft: "var(--p-julien-soft)", base: 35, mineur: false, jours: [1, 1, 1, 1, 1] },
+    { id: "justine", name: "Justine", color: "var(--p-justine)", soft: "var(--p-justine-soft)", base: 35, mineur: false, jours: [1, 1, 1, 1, 1] }
   ];
   const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
   const KEY = "planning-equipe-v5";
@@ -542,12 +572,33 @@ html.ecran .lday h3 { font-size: 1.4rem; }
   }
   const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
   // les colonnes debut et fin n'existent qu'une fois supabase/horaires.sql passé : on ne les envoie qu'à ce moment-là
-  let HAS_TIMES = false, HAS_HISTORY = false;
+  let HAS_TIMES = false, HAS_HISTORY = false, HAS_LOT2 = false;
+  const LOT2 = ["kind", "status", "notes", "lieu", "client_id", "fin_date", "reporte_de"];
+  const KINDS = { client: "Intervention client", interne: "Tâche interne", formation: "Formation", absence: "Absence", conge: "Congé" };
+  const KIND_SHORT = { client: "", interne: "Interne", formation: "Formation", absence: "Absence", conge: "Congé" };
+  const STATUS = { planifiee: "Planifiée", en_cours: "En cours", terminee: "Terminée", reportee: "Reportée", attente: "En attente (matériel ou client)", a_revoir: "À revoir (nouvelle visite)", annulee: "Annulée" };
+  const STATUS_SHORT = { en_cours: "En cours", reportee: "Reportée", attente: "En attente", a_revoir: "À revoir", annulee: "Annulée" };
+  const isOff = t => t.kind === "absence" || t.kind === "conge";
+  const isDone = t => t.status === "terminee" || t.done;
+  const counts = t => !isOff(t) && t.status !== "annulee";       // compte dans les heures de travail
+  const weekday = di => { const d = parse(di).getDay(); return d > 0 && d < 6; };
+  // une intervention sur plusieurs jours apparaît chaque jour ouvré entre date et fin_date
+  const occursOn = (t, di) => !!t.date && (t.date === di || (!!t.fin_date && t.fin_date > t.date && di > t.date && di <= t.fin_date && weekday(di)));
+  function dayRank(t, di) {
+    if (!t.fin_date || t.fin_date <= t.date) return null;
+    let n = 0, k = 0;
+    for (let d = parse(t.date); iso(d) <= t.fin_date; d = addDays(d, 1)) { const x = iso(d); if (x === t.date || weekday(x)) { n++; if (x === di) k = n; } }
+    return n > 1 ? k + "/" + n : null;
+  }
+  let clients = [], modeles = [];
+  const findClient = name => { const n = String(name || "").trim().toLowerCase(); return n ? clients.find(c => c.nom.toLowerCase() === n) : null; };
   const EMAIL_NAME = {};
-  const fields = () => ["id", "title", "client", "dur", "date", "people", "done", "series", "rep"].concat(HAS_TIMES ? ["debut", "fin"] : []);
+  const fields = () => ["id", "title", "client", "dur", "date", "people", "done", "series", "rep"].concat(HAS_TIMES ? ["debut", "fin"] : [], HAS_LOT2 ? LOT2 : []);
   const norm = r => ({ id: r.id, title: r.title, client: r.client || "", dur: Number(r.dur) || 1, date: r.date || null,
     people: Array.isArray(r.people) ? r.people : [], done: !!r.done, series: r.series || null, rep: r.rep || null,
-    debut: r.debut || null, fin: r.fin || null, updated_at: r.updated_at || null });
+    debut: r.debut || null, fin: r.fin || null, updated_at: r.updated_at || null,
+    kind: r.kind || (r.client ? "client" : "interne"), status: r.status || (r.done ? "terminee" : "planifiee"), notes: r.notes || "",
+    lieu: r.lieu || "site", client_id: r.client_id || null, fin_date: r.fin_date || null, reporte_de: r.reporte_de || null });
   const row = t => { const o = {}; fields().forEach(f => { o[f] = f in t ? t[f] : null; }); o.client = o.client || ""; o.done = !!o.done; o.people = o.people || []; return o; };
 
   // ---- horaires et règles RH ----
@@ -566,13 +617,18 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     const out = [], before = iso(addDays(parse(weekDays[0]), -1));
     PEOPLE.forEach(p => {
       const L = p.mineur ? LIMITS.mineur : LIMITS.adulte;
-      const of = d => state.tasks.filter(t => t.date === d && t.people.includes(p.id));
+      const all = d => state.tasks.filter(t => occursOn(t, d) && t.people.includes(p.id) && t.status !== "annulee");
+      const of = d => all(d).filter(t => !isOff(t));
       const timed = d => of(d).filter(hasTime).map(t => ({ t, a: toMin(t.debut), b: toMin(t.fin) })).sort((x, y) => x.a - y.a);
       const add = (niv, date, court, long) => out.push({ niv, pid: p.id, date, court, long: p.name + (date ? ", " + dayLabel(date) : "") + " : " + long });
       let week = 0, daysWorked = 0;
       weekDays.forEach((d, i) => {
         const mins = of(d).reduce((s, t) => s + workMin(t), 0);
         week += mins; if (mins) daysWorked++;
+        const offs = all(d).filter(isOff), wd = (parse(d).getDay() + 6) % 7, share = wd < 5 && p.jours ? p.jours[wd] : 1;
+        if (offs.length && mins) add("fort", d, "Pendant : " + KIND_SHORT[offs[0].kind].toLowerCase(), "travail prévu pendant « " + offs[0].title + " » (" + KIND_SHORT[offs[0].kind].toLowerCase() + ").");
+        if (mins && share === 0) add("fort", d, "Jour non travaillé", "travail prévu un jour non travaillé.");
+        else if (mins > share * DAY_H * 60 && share < 1) add("info", d, "Demi-journée", durLabel(mins / 60) + " prévues sur une demi-journée de travail.");
         if (mins > L.jour) add("fort", d, "Plus de " + L.jour / 60 + " h de travail", durLabel(mins / 60) + " de travail, au-delà du maximum de " + L.jour / 60 + " h par jour.");
         const tm = timed(d);
         for (let k = 1; k < tm.length; k++) for (let j = 0; j < k; j++) if (tm[k].a < tm[j].b)
@@ -662,7 +718,8 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     }
     if (localDiff().length) save(); else { persist(); setSync(SCREEN ? "Mis à jour à " + hhmm(new Date()) : "À jour"); }
   }
-  const FIELD_LABEL = { title: "titre", client: "client", dur: "durée", date: "jour", people: "personnes", done: "faite", debut: "début", fin: "fin", rep: "répétition", series: "série" };
+  const FIELD_LABEL = { title: "titre", client: "client", dur: "durée", date: "jour", people: "personnes", done: "faite", debut: "début", fin: "fin", rep: "répétition", series: "série",
+    kind: "type", status: "statut", notes: "notes", lieu: "lieu", client_id: "fiche client", fin_date: "dernier jour", reporte_de: "report" };
 
   // envoie à la base uniquement les champs modifiés ; une tâche changée entre-temps par un collègue est relue puis fusionnée
   let saving = Promise.resolve(), retryTimer = null;
@@ -817,20 +874,25 @@ html.ecran .lday h3 { font-size: 1.4rem; }
 
   // sélecteurs de personnes
 
+  $("f-kind").innerHTML = Object.entries(KINDS).map(([k, v]) => `<label class="chk"><input type="radio" name="f-kind" value="${k}">${v}</label>`).join("");
+  $("f-status").innerHTML = Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
   $("f-people").innerHTML = PEOPLE.map(p => `<label class="chk" style="--pc:${p.color}"><input type="checkbox" id="f-p-${p.id}" value="${p.id}"><span class="dot" aria-hidden="true"></span>${p.name}</label>`).join("");
   
   function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 
-  function taskHTML(t, row) {
+  function taskHTML(t, row, di) {
     const p = person(row);
     const others = t.people.filter(x => x !== row).map(x => person(x).name);
     // dans la grille, une seule tabulation pour tout le tableau : les tâches s'atteignent avec les flèches (tabindex -1)
     const act = SCREEN ? "" : ` role="button" tabindex="${row ? -1 : 0}" aria-haspopup="dialog" aria-describedby="task-help"`;
     const grabbed = kb && kb.id === t.id && (kb.from || "") === (row || "");
-    return `<div class="task${t.people.length > 1 ? " shared" : ""}${t.done ? " done" : ""}${grabbed ? " grabbed" : ""}" data-id="${t.id}" data-from="${row || ""}"${act} style="--pc:${p ? p.color : "var(--control)"}">
-      <span class="t">${t.done ? `<span class="sr-only">Faite : </span>` : ""}${esc(t.title)}</span>
+    const rank = di ? dayRank(t, di) : null;
+    return `<div class="task${t.people.length > 1 ? " shared" : ""}${isDone(t) ? " done" : ""}${grabbed ? " grabbed" : ""} k-${t.kind} st-${t.status}" data-id="${t.id}" data-from="${row || ""}"${act} style="--pc:${p ? p.color : "var(--control)"}">
+      ${KIND_SHORT[t.kind] ? `<span class="kind">${KIND_SHORT[t.kind]}</span>` : ""}
+      <span class="t">${isDone(t) ? `<span class="sr-only">Faite : </span>` : ""}${STATUS_SHORT[t.status] ? `<span class="sr-only">${STATUS_SHORT[t.status]} : </span>` : ""}${esc(t.title)}</span>
       ${t.people.length > 1 ? `<span class="with">Commune${row ? " avec " + others.join(", ") : " : " + t.people.map(x => person(x).name).join(", ")}</span>` : ""}
-      <span class="m">${t.client ? `<span>${esc(t.client)}</span>` : ""}${hasTime(t) ? `<span class="h">${t.debut}–${t.fin}</span>` : ""}<span class="d">${durLabel(t.dur)}</span>${t.series ? `<span class="rep"><span aria-hidden="true">↻ </span>${REP_LABEL[t.rep] || "répétée"}</span>` : ""}</span>
+      <span class="m">${t.client ? `<span>${esc(t.client)}</span>` : ""}${hasTime(t) ? `<span class="h">${t.debut}–${t.fin}</span>` : ""}<span class="d">${durLabel(t.dur)}</span>${t.series ? `<span class="rep"><span aria-hidden="true">↻ </span>${REP_LABEL[t.rep] || "répétée"}</span>` : ""}${rank ? `<span>jour ${rank}</span>` : ""}${t.lieu === "distance" ? `<span>à distance</span>` : ""}${t.notes ? `<span class="note-ico" title="Notes internes"><span aria-hidden="true">✎</span><span class="sr-only">avec notes</span></span>` : ""}</span>
+      ${STATUS_SHORT[t.status] ? `<span class="m"><span class="st" aria-hidden="true">${STATUS_SHORT[t.status]}</span>${t.reporte_de ? `<span>du ${fmtShort(parse(t.reporte_de))}</span>` : ""}</span>` : (t.reporte_de ? `<span class="m"><span>reportée du ${fmtShort(parse(t.reporte_de))}</span></span>` : "")}
     </div>`;
   }
 
@@ -867,8 +929,8 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     grid.classList.toggle("solo", rows.length === 1);
     grid.style.setProperty("--rows", rows.length);
     rows.forEach((p, r) => {
-      const mine = state.tasks.filter(t => t.people.includes(p.id) && weekIsos.includes(t.date));
-      const total = mine.reduce((s, t) => s + t.dur, 0);
+      const mine = state.tasks.filter(t => t.people.includes(p.id) && weekIsos.some(di => occursOn(t, di)));
+      const total = weekIsos.reduce((s, di) => s + mine.filter(t => occursOn(t, di) && counts(t)).reduce((a, t) => a + t.dur, 0), 0);
       const pct = Math.min(100, total / p.base * 100);
       const isMe = p.id === state.me && !SCREEN;
       const extra = total - p.base;
@@ -879,15 +941,17 @@ html.ecran .lday h3 { font-size: 1.4rem; }
         <span class="bar${extra > 0 ? " over" : ""}" aria-hidden="true"><i style="width:${pct}%"></i></span>
       </div>`;
       weekIsos.forEach((di, c) => {
-        const ts = mine.filter(t => t.date === di).sort((x, y) => (toMin(x.debut) ?? 9999) - (toMin(y.debut) ?? 9999));
-        const sum = ts.reduce((s, t) => s + t.dur, 0);
+        const ts = mine.filter(t => occursOn(t, di)).sort((x, y) => (toMin(x.debut) ?? 9999) - (toMin(y.debut) ?? 9999));
+        const sum = ts.filter(counts).reduce((s, t) => s + t.dur, 0);
+        const share = p.jours ? p.jours[c] : 1, cap = DAY_H * share;
         const al = shownAlerts.filter(x => x.pid === p.id && x.date === di);
         const strong = al.some(x => x.niv === "fort");
         const target = kb && kb.r === r && kb.c === c;
         const active = G && r === cur.r && c === cur.c;
-        html += `<div class="cell${sum > DAY_H ? " over" : ""}${strong ? " alert" : ""}${di === todayIso ? " today" : ""}${target ? " kb-target" : ""}" role="${G ? "gridcell" : "cell"}" aria-colindex="${c + 2}"${G ? ` tabindex="${active ? 0 : -1}"` : ""} data-r="${r}" data-c="${c}" data-drop="cell" data-person="${p.id}" data-date="${di}">
-          ${ts.map(t => taskHTML(t, p.id)).join("")}
-          ${ts.length ? `<span class="flag${sum > DAY_H ? " over" : ""}">${sum > DAY_H ? "Surchargé : " : ""}${durLabel(sum)} / ${DAY_H} h</span>` : ""}
+        html += `<div class="cell${sum > cap && share > 0 ? " over" : ""}${share === 0 ? " nowork" : ""}${strong ? " alert" : ""}${di === todayIso ? " today" : ""}${target ? " kb-target" : ""}" role="${G ? "gridcell" : "cell"}" aria-colindex="${c + 2}"${G ? ` tabindex="${active ? 0 : -1}"` : ""} data-r="${r}" data-c="${c}" data-drop="cell" data-person="${p.id}" data-date="${di}">
+          ${share < 1 ? `<span class="daynote">${share === 0 ? "Non travaillé" : "Demi-journée"}</span>` : ""}
+          ${ts.map(t => taskHTML(t, p.id, di)).join("")}
+          ${sum ? `<span class="flag${sum > cap ? " over" : ""}">${sum > cap ? "Surchargé : " : ""}${durLabel(sum)} / ${durLabel(cap)}</span>` : ""}
           ${al.length ? `<ul class="alerts">${al.map(x => `<li class="${x.niv === "fort" ? "" : "minor"}"><span aria-hidden="true">⚠ </span>${esc(x.court)}</li>`).join("")}</ul>` : ""}
           ${SCREEN ? "" : `<button type="button" class="add" tabindex="-1" data-person="${p.id}" data-date="${di}" aria-haspopup="dialog" aria-label="Ajouter une tâche pour ${p.name}, ${DAYS[c].toLowerCase()} ${fmtShort(days[c])}"><span aria-hidden="true">+</span> Ajouter</button>`}
         </div>`;
@@ -900,7 +964,7 @@ html.ecran .lday h3 { font-size: 1.4rem; }
 
     const back = state.tasks.filter(t => !t.people.length || !t.date);
     blist.innerHTML = back.length
-      ? back.map(t => `<li class="btask">${taskHTML(t, null)}<button type="button" class="take" data-take="${t.id}" aria-label="Prendre « ${esc(t.title)} »">Prendre</button></li>`).join("")
+      ? back.map(t => `<li class="btask">${taskHTML(t, null, null)}<button type="button" class="take" data-take="${t.id}" aria-label="Prendre « ${esc(t.title)} »">Prendre</button></li>`).join("")
       : `<li class="empty">Rien à prendre pour l'instant.</li>`;
     renderSummary(weekIsos);
     renderList(days);
@@ -943,8 +1007,8 @@ html.ecran .lday h3 { font-size: 1.4rem; }
 
   const forShown = t => !QUI || t.people.some(x => QUI.includes(x));
   function renderSummary(weekIsos) {
-    const wk = state.tasks.filter(t => t.people.length && weekIsos.includes(t.date) && forShown(t));
-    const done = wk.filter(t => t.done).length;
+    const wk = state.tasks.filter(t => t.people.length && weekIsos.some(di => occursOn(t, di)) && forShown(t) && counts(t));
+    const done = wk.filter(isDone).length;
     const hours = wk.reduce((s, t) => s + t.dur, 0);
     const back = state.tasks.filter(t => !t.people.length || !t.date).length;
     const pl = (n, w) => `<li><b>${n}</b> ${w}${n > 1 ? "s" : ""}</li>`;
@@ -958,14 +1022,14 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     $("listbody").innerHTML = days.map((d, i) => {
       const di = iso(d);
       const today = di === todayIso;
-      const ts = state.tasks.filter(t => t.date === di && t.people.length && forShown(t) && (filter === "all" || t.people.includes(filter)));
-      const rows = ts.map(t => `<li><label class="lrow${t.done ? " done" : ""}">
-          <input type="checkbox" data-done="${t.id}"${t.done ? " checked" : ""}>
-          <span class="lt">${esc(t.title)}${t.done ? `<span class="sr-only"> (faite)</span>` : ""}${t.client ? `<small>${esc(t.client)}</small>` : ""}</span>
+      const ts = state.tasks.filter(t => occursOn(t, di) && t.people.length && forShown(t) && (filter === "all" || t.people.includes(filter)));
+      const rows = ts.map(t => `<li><label class="lrow${isDone(t) ? " done" : ""}">
+          <input type="checkbox" data-done="${t.id}"${isDone(t) ? " checked" : ""}${isOff(t) ? " disabled" : ""}>
+          <span class="lt">${esc(t.title)}${isDone(t) ? `<span class="sr-only"> (faite)</span>` : ""}${[KIND_SHORT[t.kind], STATUS_SHORT[t.status], t.client, t.lieu === "distance" ? "à distance" : "", dayRank(t, di) ? "jour " + dayRank(t, di) : ""].filter(Boolean).length ? `<small>${esc([KIND_SHORT[t.kind], STATUS_SHORT[t.status], t.client, t.lieu === "distance" ? "à distance" : "", dayRank(t, di) ? "jour " + dayRank(t, di) : ""].filter(Boolean).join(" · "))}</small>` : ""}</span>
           <span class="lp">${t.people.map(x => `<span class="pill" style="--pc:${person(x).color};--ps:${person(x).soft}">${person(x).name}</span>`).join("")}</span>
           <span class="lh">${durLabel(t.dur)}</span>
         </label></li>`).join("");
-      const left = ts.filter(t => !t.done).length;
+      const left = ts.filter(t => !isDone(t) && counts(t)).length;
       return `<section class="lday${today ? " today" : ""}" aria-labelledby="ld-${di}">
         <h3 id="ld-${di}">${DAYS[i]}${today ? `<span class="badge">aujourd'hui</span>` : ""} <span class="date">${fmtShort(d)}</span><span class="count">${ts.length ? left + " à faire sur " + ts.length : "rien de prévu"}</span></h3>
         ${rows ? `<ul class="lrows">${rows}</ul>` : ""}
@@ -999,12 +1063,99 @@ html.ecran .lday h3 { font-size: 1.4rem; }
       $("f-series").textContent = "↻ Tâche répétée " + (REP_LABEL[t.rep] || "") + " (" + n + " occurrences). Les modifications s'appliquent à cette occurrence seulement.";
     }
     $("f-done").checked = !!t.done;
+    // champs du lot 2 (type, statut, client, notes…) : visibles une fois supabase/interventions.sql passé
+    document.querySelectorAll("#form .l2").forEach(el => { el.hidden = !HAS_LOT2; });
+    reportFrom = null; $("f-date-hint").hidden = true; $("f-report").hidden = !t.id || !t.date || !HAS_LOT2;
+    if (HAS_LOT2) {
+      $("f-done-wrap").hidden = true;
+      $("f-status-row").hidden = !t.id;
+      const kind = t.kind || "client";
+      document.querySelectorAll("input[name=f-kind]").forEach(r => { r.checked = r.value === kind; });
+      $("f-status").value = t.status || "planifiee";
+      $("f-notes").value = t.notes || "";
+      $("f-distance").checked = t.lieu === "distance";
+      $("f-findate").value = t.fin_date || "";
+      const c = (t.client_id && clients.find(x => x.id === t.client_id)) || findClient(t.client);
+      $("f-adresse").value = c ? c.adresse : ""; $("f-tel").value = c ? c.telephone : "";
+      $("f-model").value = ""; $("f-model-del").hidden = true;
+      $("f-model-row").hidden = !!t.id || !modeles.length;
+      clientInfo();
+    }
     loadHistory(t);
     syncDurs();
     $("ferr").hidden = true;
     $("f-title").removeAttribute("aria-invalid");
     if (!dlg) openDialog($("overlay"), $("f-title")); else setTimeout(() => $("f-title").focus(), 0);
   }
+  // ---- clients, modèles, report ----
+  let reportFrom = null;
+  async function loadRefs() {
+    if (!HAS_LOT2) return;
+    const [c, m] = await Promise.all([sb.from("clients").select("*").order("nom"), sb.from("modeles").select("*").order("nom")]);
+    if (!c.error && c.data) clients = c.data.map(x => ({ id: x.id, nom: x.nom, adresse: x.adresse || "", telephone: x.telephone || "" }));
+    if (!m.error && m.data) modeles = m.data;
+    $("clients-list").innerHTML = clients.map(x => `<option value="${esc(x.nom)}"></option>`).join("");
+    $("f-model").innerHTML = `<option value="">Aucun modèle</option>` + modeles.map(x => `<option value="${esc(x.id)}">${esc(x.nom)}</option>`).join("");
+  }
+  async function saveClient(c) {
+    const { error } = await sb.from("clients").upsert(c);
+    if (error) { $("toastmsg").textContent = "Fiche client non enregistrée : " + error.message; $("toast").hidden = false; $("undo").hidden = true; return; }
+    const i = clients.findIndex(x => x.id === c.id); if (i >= 0) clients[i] = c; else clients.push(c);
+    clients.sort((a, b) => a.nom.localeCompare(b.nom));
+    $("clients-list").innerHTML = clients.map(x => `<option value="${esc(x.nom)}"></option>`).join("");
+  }
+  // sous le champ client : itinéraire et dernières interventions chez ce client
+  function clientInfo() {
+    const name = $("f-client").value.trim(), c = findClient(name), adr = $("f-adresse").value.trim();
+    let html = "";
+    if (adr) html += `<a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(adr)}" target="_blank" rel="noopener">Itinéraire vers ${esc(adr)} (Google Maps, nouvel onglet)</a>`;
+    if (c || name) {
+      const past = state.tasks.filter(t => t.date && ((c && t.client_id === c.id) || (name && t.client.toLowerCase() === name.toLowerCase())) && (!editing || t.id !== editing.id))
+        .sort((a, b) => b.date.localeCompare(a.date));
+      if (past.length) html += `<p>${past.length} intervention${past.length > 1 ? "s" : ""} pour ce client, dont :</p><ul>` + past.slice(0, 5).map(t => `<li>${fmtShort(parse(t.date))} · ${esc(t.title)} · ${STATUS[t.status] || ""}</li>`).join("") + `</ul>`;
+    }
+    $("f-client-info").innerHTML = html; $("f-client-info").hidden = !HAS_LOT2 || !html;
+  }
+  // mis à jour pendant la frappe (et pas à la sortie du champ) : sinon le bloc apparaît au moment
+  // du clic sur « Enregistrer », décale le bouton et le clic est perdu
+  $("f-client").addEventListener("input", () => {
+    const c = findClient($("f-client").value);
+    if (c) { if (!$("f-adresse").value) $("f-adresse").value = c.adresse; if (!$("f-tel").value) $("f-tel").value = c.telephone; }
+    clientInfo();
+  });
+  $("f-adresse").addEventListener("input", clientInfo);
+  $("f-report").addEventListener("click", () => {
+    reportFrom = editing.date; $("f-date-hint").hidden = false; $("f-date").focus();
+    announce("Choisissez le nouveau jour, puis Enregistrer.");
+  });
+  $("f-model").addEventListener("change", () => {
+    const m = modeles.find(x => x.id === $("f-model").value); $("f-model-del").hidden = !m; if (!m) return;
+    const d = m.data || {};
+    $("f-title").value = d.title || m.nom; $("f-dur").value = String(d.dur || 1); syncDurs();
+    document.querySelectorAll("input[name=f-kind]").forEach(r => { r.checked = r.value === (d.kind || "client"); });
+    $("f-distance").checked = d.lieu === "distance"; $("f-notes").value = d.notes || "";
+    if (d.client) { $("f-client").value = d.client; $("f-client").dispatchEvent(new Event("change")); }
+    if (HAS_TIMES && d.debut && d.fin) { $("f-debut").value = d.debut; $("f-fin").value = d.fin; }
+    announce("Modèle « " + m.nom + " » appliqué.");
+  });
+  $("f-model-del").addEventListener("click", async () => {
+    const m = modeles.find(x => x.id === $("f-model").value); if (!m || !confirm("Supprimer le modèle « " + m.nom + " » ?")) return;
+    const { error } = await sb.from("modeles").delete().eq("id", m.id);
+    if (error) { announce("Suppression impossible : " + error.message); return; }
+    await loadRefs(); $("f-model-del").hidden = true; $("f-model-row").hidden = !modeles.length; announce("Modèle supprimé.");
+  });
+  $("f-save-model").addEventListener("click", async () => {
+    const title = $("f-title").value.trim();
+    if (!title) { $("ferr").textContent = "Donnez un nom à la tâche avant d'en faire un modèle."; $("ferr").hidden = false; $("f-title").focus(); return; }
+    const kind = (document.querySelector("input[name=f-kind]:checked") || {}).value || "client";
+    const data = { title, dur: Number(String($("f-dur").value).replace(",", ".")) || 1, kind, lieu: $("f-distance").checked ? "distance" : "site", notes: $("f-notes").value.trim(), client: $("f-client").value.trim(),
+      debut: $("f-debut").value || null, fin: $("f-fin").value || null };
+    const old = modeles.find(x => x.nom.toLowerCase() === title.toLowerCase());
+    const { error } = await sb.from("modeles").upsert({ id: old ? old.id : uid(), nom: title, data });
+    if (error) { announce("Modèle non enregistré : " + error.message); return; }
+    await loadRefs(); announce("Modèle « " + title + " » " + (old ? "mis à jour." : "enregistré : il sera proposé en haut de la fiche des nouvelles tâches."));
+  });
+
   async function loadHistory(t) {
     const box = $("f-hist"); box.hidden = true; box.open = false; $("f-hist-list").innerHTML = "";
     if (!HAS_HISTORY || !t.id) return;
@@ -1031,7 +1182,8 @@ html.ecran .lday h3 { font-size: 1.4rem; }
   });
   $("f-dup").addEventListener("click", () => {
     const src = editing;
-    openForm({ title: src.title, client: src.client, people: src.people.slice(), date: src.date, dur: src.dur, debut: src.debut, fin: src.fin });
+    openForm({ title: src.title, client: src.client, client_id: src.client_id, people: src.people.slice(), date: src.date, dur: src.dur, debut: src.debut, fin: src.fin,
+      kind: src.kind, lieu: src.lieu, notes: src.notes, fin_date: src.fin_date });
     $("ftitle").textContent = "Copie de la tâche";
   });
   $("f-del-series").addEventListener("click", () => {
@@ -1051,7 +1203,7 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     snap("« " + title + " » supprimée.");
     state.tasks = state.tasks.filter(t => t.id !== editing.id); closeForm(); after("« " + title + " » supprimée.");
   });
-  $("form").addEventListener("submit", e => {
+  $("form").addEventListener("submit", async e => {
     e.preventDefault();
     const title = $("f-title").value.trim();
     if (!title) { $("ferr").textContent = "Le champ « Tâche » est obligatoire : donnez un nom à la tâche."; $("ferr").hidden = false; $("f-title").setAttribute("aria-invalid", "true"); $("f-title").focus(); return; }
@@ -1070,6 +1222,30 @@ html.ecran .lday h3 { font-size: 1.4rem; }
       if (db) data.dur = (toMin(fn) - toMin(db)) / 60;
     }
     if (editing.id) data.done = $("f-done").checked;
+    if (HAS_LOT2) {
+      data.kind = (document.querySelector("input[name=f-kind]:checked") || {}).value || "client";
+      data.status = editing.id ? $("f-status").value : "planifiee";
+      data.done = data.status === "terminee";
+      data.notes = $("f-notes").value.trim();
+      data.lieu = $("f-distance").checked ? "distance" : "site";
+      let fd = $("f-findate").value || null;
+      // report d'une intervention sur plusieurs jours : le dernier jour se décale d'autant
+      if (reportFrom && data.date && data.date !== reportFrom && fd && fd === editing.fin_date) fd = iso(addDays(parse(fd), Math.round((parse(data.date) - parse(reportFrom)) / 864e5)));
+      if (fd && data.date && fd < data.date) { $("ferr").textContent = "Le dernier jour doit être après le premier jour."; $("ferr").hidden = false; $("f-findate").setAttribute("aria-invalid", "true"); $("f-findate").focus(); return; }
+      $("f-findate").removeAttribute("aria-invalid");
+      data.fin_date = fd && data.date && fd > data.date ? fd : null;
+      if (reportFrom && data.date && data.date !== reportFrom) {
+        data.reporte_de = editing.reporte_de || reportFrom; if (data.status === "reportee") data.status = "planifiee";
+      }
+      // fiche client : créée ou mise à jour à partir du nom, de l'adresse et du téléphone saisis
+      const name = data.client, adr = $("f-adresse").value.trim(), tel = $("f-tel").value.trim();
+      let c = findClient(name);
+      if (name && data.kind === "client") {
+        if (!c) { c = { id: "c" + uid(), nom: name, adresse: adr, telephone: tel }; await saveClient(c); }
+        else if (adr !== c.adresse || tel !== c.telephone) await saveClient(Object.assign({}, c, { adresse: adr, telephone: tel }));
+      }
+      data.client_id = c && name && clients.some(x => x.id === c.id) ? c.id : null;
+    }
     if (editing.id) Object.assign(state.tasks.find(t => t.id === editing.id), data);
     else {
       const rep = $("f-rep").value, until = $("f-until").value;
@@ -1082,7 +1258,8 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     }
     const where = ppl.length ? " pour " + names(ppl) + ", " + dayLabel(data.date) : " dans la liste à prendre";
     const wasEdit = !!editing.id;
-    closeForm(); after("« " + title + " » " + (wasEdit ? "modifiée." : "ajoutée" + where + "."));
+    const moved = data.reporte_de && reportFrom ? " Reportée au " + dayLabel(data.date) + "." : "";
+    closeForm(); after("« " + title + " » " + (wasEdit ? "modifiée." : "ajoutée" + where + ".") + moved);
   });
 
   $("newtask").addEventListener("click", () => openForm({ people: [state.me], date: defaultDay(), dur: 1 }));
@@ -1155,7 +1332,7 @@ html.ecran .lday h3 { font-size: 1.4rem; }
   document.addEventListener("change", e => {
     const id = e.target.dataset && e.target.dataset.done;
     if (!id) return;
-    const t = state.tasks.find(x => x.id === id); t.done = e.target.checked; after("« " + t.title + " » " + (t.done ? "marquée faite." : "remise à faire."));
+    const t = state.tasks.find(x => x.id === id); t.done = e.target.checked; if (HAS_LOT2) t.status = t.done ? "terminee" : "planifiee"; after("« " + t.title + " » " + (t.done ? "marquée faite." : "remise à faire."));
   });
   document.addEventListener("keydown", e => {
     if (kb || SCREEN || !e.target.classList || !e.target.classList.contains("task")) return;
@@ -1208,7 +1385,7 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     const rows = shownRows();
     if (kb.r === rows.length) return "Tâches à prendre.";
     const p = rows[kb.r], di = iso(addDays(monday, kb.c));
-    const sum = state.tasks.filter(t => t.date === di && t.people.includes(p.id) && t.id !== kb.id).reduce((s, t) => s + t.dur, 0);
+    const sum = state.tasks.filter(t => occursOn(t, di) && counts(t) && t.people.includes(p.id) && t.id !== kb.id).reduce((s, t) => s + t.dur, 0);
     return p.name + ", " + dayLabel(di) + " : " + durLabel(sum) + " déjà prévues sur " + DAY_H + " h.";
   }
   function showTarget() { render(); announce(describeTarget()); }
@@ -1259,7 +1436,11 @@ html.ecran .lday h3 { font-size: 1.4rem; }
   // une tâche commune garde ses autres participants : seule la personne déplacée change
   function moveTask(t, from, to) {
     const rest = t.people.filter(x => x !== from);
-    if (to) { t.people = from ? rest : []; if (!t.people.includes(to.person)) t.people.push(to.person); t.date = to.date; }
+    if (to) {
+      t.people = from ? rest : []; if (!t.people.includes(to.person)) t.people.push(to.person);
+      if (t.fin_date && t.date) t.fin_date = iso(addDays(parse(t.fin_date), Math.round((parse(to.date) - parse(t.date)) / 864e5)));
+      t.date = to.date;
+    }
     else { t.people = from ? rest : t.people; if (!t.people.length) t.date = null; }
   }
 
@@ -1345,6 +1526,9 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     if (!SCREEN) document.title = "Planning de l'équipe";
     const probe = await sb.from("tasks").select("debut,fin").limit(1);
     HAS_TIMES = !probe.error;
+    const l2 = await sb.from("tasks").select(LOT2.join(",")).limit(1);
+    HAS_LOT2 = !l2.error;
+    await loadRefs();
     const hist = await sb.from("historique").select("id").limit(1);
     HAS_HISTORY = !hist.error;
     const team = await sb.from("team").select("id,email");
