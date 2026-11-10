@@ -39,38 +39,24 @@ Comptez environ 30 minutes la première fois. Les étapes marquées **(vous)** d
 
 Vercel reste possible à la place de GitHub Pages (Add New > Project, import du dépôt, Deploy) : remplacez alors l'adresse ci-dessus par celle de Vercel.
 
-## Étape 4 : récap du vendredi midi (vous, 2 étapes)
+## Étape 4 : récap du vendredi midi (vous)
 
-L'email part de votre boîte o2switch, et GitHub le déclenche chaque vendredi à 12 h (heure de Paris).
+GitHub envoie l'email chaque vendredi à 12 h (heure de Paris), depuis votre boîte Gmail (ou une boîte o2switch).
 
-1. **Une boîte email d'envoi** : dans cPanel o2switch, **Comptes de messagerie > Créer**, par exemple `planning@votre-domaine.fr`. Notez son mot de passe et le **serveur sortant (SMTP)** indiqué dans « Connect Devices » (port 465).
-2. **Les secrets GitHub** : ouvrez **Settings > Secrets and variables > Actions > New repository secret** et créez :
+1. **Mot de passe d'application Gmail** : la validation en deux étapes doit être active sur le compte Google. Ouvrez https://myaccount.google.com/apppasswords, créez un mot de passe nommé « Planning » et copiez les 16 lettres.
+2. **Clé secrète Supabase** : Supabase > Project Settings > API Keys > **Secret keys**, copiez la clé `sb_secret_…`.
+3. **Secrets GitHub** : ouvrez **Settings > Secrets and variables > Actions > New repository secret** et créez :
 
    | Nom | Valeur |
    |---|---|
-   | `SUPABASE_SECRET_KEY` | Supabase > Project Settings > API Keys > clé **secret** (`sb_secret_…`) |
-   | `SMTP_HOST` | le serveur sortant o2switch |
-   | `SMTP_USER` | l'adresse de la boîte, ex. `planning@votre-domaine.fr` |
-   | `SMTP_PASS` | son mot de passe |
+   | `SUPABASE_SECRET_KEY` | la clé `sb_secret_…` |
+   | `SMTP_HOST` | `smtp.gmail.com` (ou le serveur sortant o2switch) |
+   | `SMTP_USER` | l'adresse Gmail |
+   | `SMTP_PASS` | le mot de passe d'application (sans espaces) |
 
 Pour tester sans attendre vendredi : onglet **Actions > Récap du vendredi > Run workflow**, en indiquant votre adresse dans le champ pour n'envoyer qu'à vous.
 
 Le code est dans `scripts/recap-hebdo.mjs` et `.github/workflows/recap-hebdo.yml`. Les fichiers `supabase/functions/recap-hebdo` et `supabase/cron.sql` sont une autre méthode (Resend), non utilisée.
-
----|---|
-   | `RESEND_API_KEY` | la clé Resend |
-   | `MAIL_FROM` | `Planning <planning@votre-domaine.fr>` |
-   | `APP_URL` | l'adresse du site |
-   | `CRON_SECRET` | une longue suite de caractères au hasard |
-
-5. Dans **Edge Functions > Deploy a new function > Via Editor**, nommez la fonction `recap-hebdo`, collez le contenu de `supabase/functions/recap-hebdo/index.ts` et déployez. Dans les réglages de la fonction, **désactivez « Enforce JWT verification »** : la fonction est protégée par `CRON_SECRET`.
-6. Dans **SQL Editor**, collez `supabase/cron.sql`, remplacez `VOTRE-PROJET` et `LE-SECRET`, puis cliquez sur **Run**.
-
-Pour tester sans attendre vendredi :
-
-```
-curl -X POST "https://VOTRE-PROJET.supabase.co/functions/v1/recap-hebdo?force=1" -H "x-cron-secret: LE-SECRET"
-```
 
 ---
 
