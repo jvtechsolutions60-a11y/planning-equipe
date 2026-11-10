@@ -119,6 +119,19 @@ Le panneau « Points de vigilance » et les cases signalent :
 
 Les seuils viennent du Code du travail et sont à vérifier avec votre convention collective. On les change dans `index.html`, objet `LIMITS`. La base de chaque personne (35 h, ou moins pour un temps partiel) et l'indication « mineur » se règlent dans la liste `PEOPLE`.
 
+## Interventions, clients et modèles
+
+À activer une seule fois : Supabase > **SQL Editor** > collez `supabase/interventions.sql` > **Run**, puis rechargez le planning. Les tâches existantes sont reprises telles quelles (celles avec un client deviennent des interventions client, les autres des tâches internes, et une fiche client est créée pour chaque nom déjà saisi). Tant que ce fichier n'est pas passé, le planning fonctionne comme avant.
+
+- **Type** : intervention client, tâche interne, formation, absence ou congé. Une absence ou un congé posé sur une journée est signalé si du travail y est aussi prévu.
+- **Statut** : planifiée, en cours, terminée, reportée, en attente, à revoir, annulée. « Terminée » coche la tâche comme avant.
+- **Fiche client** : en tapant le nom, le planning propose les clients connus et remplit l'adresse et le téléphone. Sous le champ : lien d'itinéraire Google Maps et les 5 dernières interventions chez ce client.
+- **Plusieurs jours** : champ « Jusqu'au » ; l'intervention apparaît chaque jour (jour 1/3, 2/3…), week-end sauté.
+- **Reporter** : bouton dans la fiche ; on choisit le nouveau jour, la tâche garde la trace « reportée du … ».
+- **Notes** et case **À distance** pour les interventions sans déplacement.
+- **Modèles** : « Enregistrer comme modèle » dans une fiche ; le modèle est ensuite proposé en haut des nouvelles tâches.
+- **Jours travaillés** : dans `PEOPLE`, `jours: [1, 1, 1, 1, 1]` du lundi au vendredi (1 = journée, 0.5 = demi-journée, 0 = non travaillé, par exemple un jour d'école pour un apprenti). Le planning grise ces jours et signale le travail prévu dessus.
+
 ## Clavier
 
 - **Tab** amène dans le planning (une seule tabulation pour tout le tableau), puis les **flèches** vont de case en case ; **Origine** / **Fin** : début ou fin de ligne ; **Page préc.** / **Page suiv.** : semaine précédente ou suivante.
@@ -148,4 +161,5 @@ La page suit le RGAA 4.1 (niveau AA) : contrastes vérifiés en thème clair et 
 | `.github/workflows/sauvegarde-nuit.yml` | sauvegarde chiffrée chaque nuit |
 | `supabase/horaires.sql` | ajoute les heures de début et de fin |
 | `supabase/fiabilite.sql` | ajoute l'historique des modifications |
+| `supabase/interventions.sql` | ajoute types, statuts, clients, modèles et interventions sur plusieurs jours |
 | `vendor/supabase-js-2.117.3.js` | client Supabase |
