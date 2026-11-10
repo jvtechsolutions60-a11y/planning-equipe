@@ -62,7 +62,7 @@ Le code est dans `scripts/recap-hebdo.mjs` et `.github/workflows/recap-hebdo.yml
 
 ## Utilisation au quotidien
 
-- **Ajouter une tâche** : clic dans la case d'une personne et d'un jour, bouton « Nouvelle tâche », ou touche `N`.
+- **Ajouter une tâche** : clic dans la case d'une personne et d'un jour, bouton « Nouvelle tâche », ou ou le bouton « + Ajouter » de chaque case.
 - **S'attribuer une tâche** : la glisser depuis « Tâches à prendre » sur sa ligne, ou cliquer sur « Prendre ».
 - **Tâche commune** : cocher plusieurs personnes dans la fiche de la tâche.
 - **Tâche répétitive** : « Répéter » à la création, avec une date de fin.
@@ -74,12 +74,15 @@ Le code est dans `scripts/recap-hebdo.mjs` et `.github/workflows/recap-hebdo.yml
 
 Le planning se met à jour tout seul : les modifications arrivent en direct, et la page relit tout en plus toutes les 2 minutes et après une coupure réseau. À minuit, la colonne « aujourd'hui » avance d'elle-même.
 
-Pour un écran d'affichage, ajoutez `?ecran=1` à l'adresse : plein écran, gros caractères, heure affichée, lecture seule (rien ne se modifie en touchant l'écran), écran maintenu allumé, et le week-end l'écran montre déjà la semaine suivante.
+Le plus simple : bouton **Mode écran** en haut du planning, cochez les plannings à afficher (une, deux ou trois personnes), choisissez planning ou liste, puis **Afficher sur l'écran**. La touche Échap ramène au planning normal. La fenêtre donne aussi l'adresse à mettre au démarrage de l'écran.
+
+On peut aussi taper l'adresse directement : ajoutez `?ecran=1` à l'adresse : plein écran, gros caractères, heure affichée, lecture seule (rien ne se modifie en touchant l'écran), écran maintenu allumé, et le week-end l'écran montre déjà la semaine suivante.
 
 | Adresse | Affiche |
 |---|---|
 | `…/planning-equipe/?ecran=1` | toute l'équipe |
 | `…/planning-equipe/?ecran=1&qui=leo` | une seule personne (`leo`, `julien` ou `justine`) |
+| `…/planning-equipe/?ecran=1&qui=leo,julien` | plusieurs personnes |
 | `…/planning-equipe/?ecran=1&qui=leo&vue=liste` | une seule personne, en liste par jour |
 
 Mise en place, une fois :
@@ -87,6 +90,10 @@ Mise en place, une fois :
 1. Sur l'appareil de l'écran, ouvrez l'adresse normale du planning et connectez-vous avec une adresse de l'équipe (ouvrez l'email de connexion sur ce même appareil). La connexion reste ensuite mémorisée.
 2. Ouvrez l'adresse avec `?ecran=1` en plein écran (touche F11), ou réglez le navigateur pour l'ouvrir au démarrage en mode kiosque, par exemple `chromium --kiosk "https://…/planning-equipe/?ecran=1&qui=leo"`.
 3. Désactivez la mise en veille de l'écran dans les réglages de l'appareil.
+
+## Accessibilité
+
+La page suit le RGAA 4.1 (niveau AA) : contrastes vérifiés en thème clair et sombre, tout est utilisable au clavier (Entrée ou Espace sur une tâche pour l'ouvrir, et dans la fiche on choisit la personne et le jour sans glisser-déposer), fenêtres annoncées comme dialogues avec le focus gardé dedans, erreurs liées aux champs, planning lu comme un tableau par les lecteurs d'écran, zoom à 200 % sans défilement horizontal, pas de raccourci à une seule lettre. Vérifié avec axe-core.
 
 ## Ajouter ou retirer une personne
 
