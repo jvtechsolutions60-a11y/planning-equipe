@@ -10,6 +10,8 @@ import { createHash } from "node:crypto";
 
 const URL_BASE = "https://fjnhuytztxxpbdajvhbq.supabase.co/rest/v1/tasks";
 const KEY = process.env.SUPABASE_SECRET_KEY;
+const fichiers = readdirSync("taches").filter(f => f.endsWith(".json")).sort();
+if (!fichiers.length) { console.log("Aucune tâche à ajouter."); process.exit(0); }
 if (!KEY) { console.error("Secret SUPABASE_SECRET_KEY manquant (Settings > Secrets and variables > Actions)."); process.exit(1); }
 
 const EQUIPE = ["leo", "julien", "justine"];
@@ -39,7 +41,6 @@ async function inserer(ligne) {
   }
 }
 
-const fichiers = readdirSync("taches").filter(f => f.endsWith(".json")).sort();
 let erreurs = 0;
 for (const f of fichiers) {
   let liste;
