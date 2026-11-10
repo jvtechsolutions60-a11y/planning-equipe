@@ -91,6 +91,16 @@ Mise en place, une fois :
 2. Ouvrez l'adresse avec `?ecran=1` en plein écran (touche F11), ou réglez le navigateur pour l'ouvrir au démarrage en mode kiosque, par exemple `chromium --kiosk "https://…/planning-equipe/?ecran=1&qui=leo"`.
 3. Désactivez la mise en veille de l'écran dans les réglages de l'appareil.
 
+## Fiabilité des données
+
+- **Où sont les données** : dans la base Supabase (PostgreSQL), pas dans le navigateur. Vider le navigateur ou changer d'ordinateur ne perd rien. Seules les adresses de la table `team` y ont accès.
+- **Coupure de connexion** : les modifications restent à l'écran et dans le navigateur (« N modifications en attente d'envoi ») et partent seules au retour du réseau, même après avoir fermé la page.
+- **Modifications simultanées** : seuls les champs modifiés sont envoyés. Si un collègue a changé la même tâche entre-temps, ses changements sont gardés et un message indique les champs où votre version l'a emporté.
+- **Historique** : une fois `supabase/fiabilite.sql` passé dans Supabase (SQL Editor > Run), la fiche de chaque tâche montre qui a modifié quoi et quand.
+- **Sauvegarde manuelle** : bouton « Télécharger une sauvegarde » en bas du planning (fichier JSON) et « Restaurer depuis un fichier ».
+- **Sauvegarde de nuit** (facultative) : créez les secrets GitHub `SUPABASE_SECRET_KEY` et `BACKUP_PASSWORD` ; chaque nuit, une copie chiffrée (fichier .7z protégé par ce mot de passe) est gardée 90 jours dans l'onglet **Actions > Sauvegarde de nuit**. Pour restaurer : ouvrir le .7z avec 7-Zip et le mot de passe, puis « Restaurer depuis un fichier ».
+- Le client Supabase est copié dans le dépôt (`vendor/`) : le planning ne dépend plus d'un serveur tiers au chargement.
+
 ## Horaires et contrôles RH
 
 Chaque tâche peut avoir une heure de début et de fin (facultatives). Pour les activer, une seule fois : Supabase > **SQL Editor** > collez `supabase/horaires.sql` > **Run**, puis rechargez le planning.
@@ -135,3 +145,7 @@ La page suit le RGAA 4.1 (niveau AA) : contrastes vérifiés en thème clair et 
 | `scripts/recap-hebdo.mjs` | email du vendredi |
 | `.github/workflows/recap-hebdo.yml` | déclenchement chaque vendredi à 12 h |
 | `.github/workflows/garder-supabase-actif.yml` | évite la mise en pause de Supabase |
+| `.github/workflows/sauvegarde-nuit.yml` | sauvegarde chiffrée chaque nuit |
+| `supabase/horaires.sql` | ajoute les heures de début et de fin |
+| `supabase/fiabilite.sql` | ajoute l'historique des modifications |
+| `vendor/supabase-js-2.117.3.js` | client Supabase |

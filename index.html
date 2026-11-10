@@ -217,7 +217,7 @@ aside h2 { font-size: 1.2rem; }
 kbd { font-family: var(--f-mono); font-size: 0.75rem; border: 1px solid var(--control); border-bottom-width: 2px; border-radius: 4px; padding: 0 0.3rem; background: var(--surface); color: var(--ink); }
 
 /* message après une action, avec annulation (reste affiché tant qu'on ne le ferme pas) */
-.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px)); z-index: 70; background: var(--ink); color: var(--bg); border-radius: 0.75rem; padding: 0.6rem 0.75rem 0.6rem 1rem; display: flex; gap: 0.75rem; align-items: center; box-shadow: 0 10px 30px rgba(0,0,0,0.25); max-width: calc(100% - 2rem); }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px)); z-index: 55; background: var(--ink); color: var(--bg); border-radius: 0.75rem; padding: 0.6rem 0.75rem 0.6rem 1rem; display: flex; gap: 0.75rem; align-items: center; box-shadow: 0 10px 30px rgba(0,0,0,0.25); max-width: calc(100% - 2rem); }
 .toast button { background: none; border: 1px solid currentColor; color: inherit; font-weight: 700; padding: 0.2rem 0.7rem; min-height: 2rem; border-radius: 0.4rem; }
 .toast button.close { border: 0; font-size: 1.2rem; line-height: 1; padding: 0.2rem 0.5rem; }
 .toast :focus-visible { outline-color: var(--bg); }
@@ -252,6 +252,17 @@ kbd { font-family: var(--f-mono); font-size: 0.75rem; border: 1px solid var(--co
 .cell.kb-target, .blist.kb-target { outline: 3px dashed var(--accent); outline-offset: -3px; background: var(--accent-soft) !important; }
 .task.grabbed { outline: 3px dashed var(--accent); outline-offset: 1px; }
 .task .h { font-family: var(--f-mono); font-weight: 600; color: var(--ink); }
+/* sauvegarde et historique */
+.data { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.25rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+.data h2 { font-size: 1.05rem; }
+.data .hint { flex: 1 1 20rem; }
+.data-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.data label.btn { cursor: pointer; }
+input.sr-only:focus-visible + *, .data-actions:has(input:focus-visible) label { outline: 3px solid var(--focus); outline-offset: 2px; }
+.hist summary { cursor: pointer; font-weight: 600; font-size: 0.875rem; min-height: 2rem; display: flex; align-items: center; }
+.hist ul { list-style: none; margin: 0.25rem 0 0; padding: 0; font-size: 0.8125rem; color: var(--muted); display: flex; flex-direction: column; gap: 0.25rem; }
+.hist b { color: var(--ink); font-weight: 600; }
+.sync.wait { color: var(--warn); font-weight: 600; }
 /* contrôles RH */
 .cell.alert { box-shadow: inset 0 0 0 2px var(--warn); }
 .alerts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.2rem; }
@@ -285,7 +296,7 @@ html.ecran { font-size: clamp(16px, 0.62vw + 0.35vh, 30px); }
 html.ecran body { padding-block: 1.2rem; }
 html.ecran #app { cursor: none; max-width: none; }
 html.ecran .sub, html.ecran .tools, html.ecran .start, html.ecran .toggle, html.ecran aside.backlog,
-html.ecran .legend, html.ecran .cell .add, html.ecran .filters, html.ecran #toast, html.ecran .notice-text, html.ecran .skip { display: none !important; }
+html.ecran .legend, html.ecran .data, html.ecran .cell .add, html.ecran .filters, html.ecran #toast, html.ecran .notice-text, html.ecran .skip { display: none !important; }
 html.ecran .clock { display: block; font-family: var(--f-mono); font-size: 3.2rem; font-weight: 600; line-height: 1; }
 html.ecran h1 { font-size: 2.6rem; }
 html.ecran .eyebrow { font-size: 1rem; }
@@ -393,6 +404,16 @@ html.ecran .lday h3 { font-size: 1.4rem; }
       </aside>
     </div>
 
+    <section class="data" aria-labelledby="data-title">
+      <h2 id="data-title">Sauvegarde</h2>
+      <p class="hint">Les données sont enregistrées en ligne et partagées par toute l'équipe. Vous pouvez aussi en garder une copie sur votre ordinateur.</p>
+      <div class="data-actions">
+        <button type="button" class="btn" id="export">Télécharger une sauvegarde</button>
+        <label class="btn" for="import-file">Restaurer depuis un fichier</label>
+        <input type="file" id="import-file" accept="application/json,.json" class="sr-only">
+      </div>
+    </section>
+
     <ul class="legend">
       <li>Durées en heures, sur une base de 7 h par jour et 35 h par semaine.</li>
       <li>Un jour encadré en rouge et marqué « Surchargé » dépasse 7 h de travail.</li>
@@ -451,6 +472,7 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     </div>
     <p class="hint2" id="f-series" hidden></p>
     <label class="chk" id="f-done-wrap"><input type="checkbox" id="f-done">Tâche faite</label>
+    <details class="hist" id="f-hist" hidden><summary>Historique des modifications</summary><ul id="f-hist-list"></ul></details>
     <p class="err" id="ferr" role="alert" hidden></p>
     <div class="actions">
       <div class="left">
@@ -466,7 +488,8 @@ html.ecran .lday h3 { font-size: 1.4rem; }
   </form></div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
+<!-- client Supabase copié dans le dépôt : aucune dépendance à un serveur tiers au chargement -->
+<script src="vendor/supabase-js-2.117.3.js"></script>
 <script src="config.js"></script>
 <script>
 (function () {
@@ -519,11 +542,12 @@ html.ecran .lday h3 { font-size: 1.4rem; }
   }
   const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
   // les colonnes debut et fin n'existent qu'une fois supabase/horaires.sql passé : on ne les envoie qu'à ce moment-là
-  let HAS_TIMES = false;
+  let HAS_TIMES = false, HAS_HISTORY = false;
+  const EMAIL_NAME = {};
   const fields = () => ["id", "title", "client", "dur", "date", "people", "done", "series", "rep"].concat(HAS_TIMES ? ["debut", "fin"] : []);
   const norm = r => ({ id: r.id, title: r.title, client: r.client || "", dur: Number(r.dur) || 1, date: r.date || null,
     people: Array.isArray(r.people) ? r.people : [], done: !!r.done, series: r.series || null, rep: r.rep || null,
-    debut: r.debut || null, fin: r.fin || null });
+    debut: r.debut || null, fin: r.fin || null, updated_at: r.updated_at || null });
   const row = t => { const o = {}; fields().forEach(f => { o[f] = f in t ? t[f] : null; }); o.client = o.client || ""; o.done = !!o.done; o.people = o.people || []; return o; };
 
   // ---- horaires et règles RH ----
@@ -580,34 +604,111 @@ html.ecran .lday h3 { font-size: 1.4rem; }
   const hhmm = d => pad(d.getHours()) + ":" + pad(d.getMinutes());
   let state = { tasks: [], me: null };
 
-  function setSync(txt, bad) { $("sync").textContent = txt; $("sync").classList.toggle("bad", !!bad); }
+  function setSync(txt, bad) { $("sync").textContent = txt; $("sync").classList.toggle("bad", !!bad); $("sync").classList.remove("wait"); }
+
+  // ---- synchronisation fiable ----
+  // « synced » = dernière version connue de la base pour chaque tâche. Les modifications locales sont la différence entre
+  // l'écran et cette version : elles survivent à une coupure réseau (copie dans le navigateur) et sont renvoyées ensuite.
+  const QKEY = KEY + "-attente";
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  function localDiff() {
+    const out = [], ids = new Set();
+    state.tasks.forEach(t => {
+      ids.add(t.id);
+      const r = row(t), base = synced.get(t.id);
+      if (!base) { out.push({ kind: "new", id: t.id, row: r, title: t.title }); return; }
+      const b = JSON.parse(base), fields = {};
+      Object.keys(r).forEach(k => { if (!same(r[k], b[k])) fields[k] = r[k]; });
+      if (Object.keys(fields).length) out.push({ kind: "upd", id: t.id, fields, base: b, at: t.updated_at, title: t.title });
+    });
+    synced.forEach((v, id) => { if (!ids.has(id)) out.push({ kind: "del", id, title: JSON.parse(v).title }); });
+    return out;
+  }
+  function persist() {
+    const n = localDiff().length;
+    try { if (n) localStorage.setItem(QKEY, JSON.stringify({ tasks: state.tasks, synced: [...synced] })); else localStorage.removeItem(QKEY); } catch (_) {}
+    return n;
+  }
+  function showPending(n) {
+    $("sync").textContent = n + " modification" + (n > 1 ? "s" : "") + " en attente d'envoi : elles partiront au retour de la connexion.";
+    $("sync").classList.add("bad", "wait");
+  }
+  const isNetwork = err => !navigator.onLine || /fetch|network|timeout|load failed/i.test((err && (err.message || err.details)) || "");
 
   async function fetchTasks() {
     const { data, error } = await sb.from("tasks").select("*");
-    if (error) { setSync(lastOk ? "Pas de connexion depuis " + hhmm(new Date(lastOk)) : "Erreur de chargement", true); return; }
+    if (error) { const n = persist(); if (n) showPending(n); else setSync(lastOk ? "Pas de connexion depuis " + hhmm(new Date(lastOk)) : "Erreur de chargement", true); return; }
     lastOk = Date.now();
+    // on repart de la base, puis on réapplique par-dessus les modifications locales pas encore envoyées
+    const mine = localDiff();
+    synced = new Map(data.map(r => [r.id, JSON.stringify(row(norm(r)))]));
     state.tasks = data.map(norm);
-    synced = new Map(state.tasks.map(t => [t.id, JSON.stringify(row(t))]));
-    setSync(SCREEN ? "Mis à jour à " + hhmm(new Date()) : "À jour");
+    const clashes = [], lost = [];
+    mine.forEach(c => {
+      if (c.kind === "new") { if (!synced.has(c.id)) state.tasks.push(Object.assign(norm(c.row), { updated_at: null })); return; }
+      if (c.kind === "del") { state.tasks = state.tasks.filter(t => t.id !== c.id); return; }
+      const t = state.tasks.find(x => x.id === c.id);
+      if (!t) { lost.push(c.title); return; }
+      const now = row(t);
+      const over = Object.keys(c.fields).filter(k => !same(now[k], c.base[k]) && !same(now[k], c.fields[k]));
+      Object.assign(t, c.fields);
+      if (over.length) clashes.push("« " + c.title + " » (" + over.map(k => FIELD_LABEL[k] || k).join(", ") + ")");
+    });
     render();
+    if (clashes.length || lost.length) {
+      const msg = (clashes.length ? "Un collègue avait aussi modifié " + clashes.join(", ") + " : votre version a été gardée pour ces champs, le reste de ses changements est conservé. " : "")
+        + (lost.length ? "Supprimée entre-temps par un collègue, donc modification non appliquée : " + lost.map(t => "« " + t + " »").join(", ") + "." : "");
+      $("toastmsg").textContent = msg.trim(); $("toast").hidden = false; $("undo").hidden = true; announce(msg.trim());
+    }
+    if (localDiff().length) save(); else { persist(); setSync(SCREEN ? "Mis à jour à " + hhmm(new Date()) : "À jour"); }
   }
+  const FIELD_LABEL = { title: "titre", client: "client", dur: "durée", date: "jour", people: "personnes", done: "faite", debut: "début", fin: "fin", rep: "répétition", series: "série" };
 
-  // envoie à la base uniquement ce qui a changé depuis la dernière synchronisation
-  let saving = Promise.resolve();
+  // envoie à la base uniquement les champs modifiés ; une tâche changée entre-temps par un collègue est relue puis fusionnée
+  let saving = Promise.resolve(), retryTimer = null;
   function save() {
-    const ups = [], live = new Set();
-    state.tasks.forEach(t => { live.add(t.id); const j = JSON.stringify(row(t)); if (synced.get(t.id) !== j) ups.push(row(t)); });
-    const dels = [...synced.keys()].filter(id => !live.has(id));
-    if (!ups.length && !dels.length) return;
+    const n = persist();
+    if (!n) return;
     setSync("Enregistrement…");
-    saving = saving.then(async () => {
-      if (ups.length) { const { error } = await sb.from("tasks").upsert(ups); if (error) throw error; }
-      if (dels.length) { const { error } = await sb.from("tasks").delete().in("id", dels); if (error) throw error; }
-      ups.forEach(r => synced.set(r.id, JSON.stringify(r)));
-      dels.forEach(id => synced.delete(id));
-      setSync("À jour");
-    }).catch(err => { setSync("Non enregistré : " + (err.message || "erreur"), true); fetchTasks(); });
+    saving = saving.then(flush).catch(err => {
+      if (isNetwork(err)) { showPending(persist()); clearTimeout(retryTimer); retryTimer = setTimeout(save, 20000); return; }
+      // refus de la base (droits, format) : on l'affiche clairement et on revient à la version enregistrée
+      const msg = "Modification refusée par la base : " + (err.message || "erreur inconnue") + ". L'écran revient à la version enregistrée.";
+      $("toastmsg").textContent = msg; $("toast").hidden = false; $("undo").hidden = true; announce(msg);
+      synced = new Map(); state.tasks = []; try { localStorage.removeItem(QKEY); } catch (_) {}
+      setSync("Non enregistré", true); return fetchTasks();
+    });
   }
+  async function flush() {
+    let conflict = false;
+    for (const c of localDiff()) {
+      if (c.kind === "new") {
+        const { data, error } = await sb.from("tasks").insert(c.row).select("updated_at");
+        if (error) { if (error.code === "23505") { conflict = true; continue; } throw error; }
+        synced.set(c.id, JSON.stringify(c.row));
+        const t = state.tasks.find(x => x.id === c.id); if (t && data && data[0]) t.updated_at = data[0].updated_at;
+      } else if (c.kind === "upd") {
+        let q = sb.from("tasks").update(c.fields).eq("id", c.id);
+        if (c.at) q = q.eq("updated_at", c.at);
+        const { data, error } = await q.select("updated_at");
+        if (error) throw error;
+        if (!data || !data.length) { conflict = true; continue; }
+        const t = state.tasks.find(x => x.id === c.id);
+        synced.set(c.id, JSON.stringify(Object.assign(c.base, c.fields)));
+        if (t) t.updated_at = data[0].updated_at;
+      } else {
+        const { error } = await sb.from("tasks").delete().eq("id", c.id);
+        if (error) throw error;
+        synced.delete(c.id);
+      }
+      persist();
+    }
+    if (conflict) return fetchTasks();
+    if (!persist()) setSync("À jour");
+  }
+  window.addEventListener("online", () => { if (localDiff().length) save(); });
+  window.addEventListener("beforeunload", e => { if (state.tasks.length && localDiff().length) { e.preventDefault(); e.returnValue = ""; } });
+
   // mode écran mural : ?ecran=1, avec en option &qui=leo,julien (plannings affichés) et &vue=liste
   const params = new URLSearchParams(location.search);
   const parseQui = v => { const ids = PEOPLE.map(p => p.id).filter(id => String(v || "").split(",").includes(id)); return ids.length && ids.length < PEOPLE.length ? ids : null; };
@@ -898,10 +999,21 @@ html.ecran .lday h3 { font-size: 1.4rem; }
       $("f-series").textContent = "↻ Tâche répétée " + (REP_LABEL[t.rep] || "") + " (" + n + " occurrences). Les modifications s'appliquent à cette occurrence seulement.";
     }
     $("f-done").checked = !!t.done;
+    loadHistory(t);
     syncDurs();
     $("ferr").hidden = true;
     $("f-title").removeAttribute("aria-invalid");
     if (!dlg) openDialog($("overlay"), $("f-title")); else setTimeout(() => $("f-title").focus(), 0);
+  }
+  async function loadHistory(t) {
+    const box = $("f-hist"); box.hidden = true; box.open = false; $("f-hist-list").innerHTML = "";
+    if (!HAS_HISTORY || !t.id) return;
+    const { data, error } = await sb.from("historique").select("action,champs,par,le").eq("task_id", t.id).order("le", { ascending: false }).limit(10);
+    if (error || !data || !data.length || !editing || editing.id !== t.id) return;
+    const who = e => EMAIL_NAME[String(e || "").toLowerCase()] || "quelqu'un";
+    const verb = { ajout: "a créé la tâche", suppression: "a supprimé la tâche", modif: "a modifié" };
+    $("f-hist-list").innerHTML = data.map(h => { const d = new Date(h.le); return `<li>${fmtShort(d)} à ${hhmm(d)} · <b>${esc(who(h.par))}</b> ${verb[h.action] || h.action}${h.champs && h.champs.length ? " : " + h.champs.map(k => FIELD_LABEL[k] || k).join(", ") : ""}</li>`; }).join("");
+    box.hidden = false;
   }
   function syncDurs() {
     const v = Number(String($("f-dur").value).replace(",", "."));
@@ -924,6 +1036,8 @@ html.ecran .lday h3 { font-size: 1.4rem; }
   });
   $("f-del-series").addEventListener("click", () => {
     const t = editing;
+    const n = state.tasks.filter(x => x.series === t.series && x.date >= t.date).length;
+    if (!confirm("Supprimer " + n + " occurrence" + (n > 1 ? "s" : "") + " de « " + t.title + " », à partir du " + fmtShort(parse(t.date)) + " ?")) return;
     snap("Série « " + t.title + " » supprimée à partir du " + fmtShort(parse(t.date)) + ".");
     state.tasks = state.tasks.filter(x => !(x.series === t.series && x.date >= t.date));
     closeForm(); after("Série « " + t.title + " » supprimée à partir du " + fmtShort(parse(t.date)) + ".");
@@ -992,6 +1106,27 @@ html.ecran .lday h3 { font-size: 1.4rem; }
   $("prev").addEventListener("click", () => { monday = addDays(monday, -7); render(); });
   $("next").addEventListener("click", () => { monday = addDays(monday, 7); render(); });
   $("today").addEventListener("click", () => { monday = mondayOf(new Date()); render(); });
+
+  // ---- sauvegarde sur l'ordinateur et restauration ----
+  $("export").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify({ app: "planning-equipe", version: 1, exporte_le: new Date().toISOString(), tasks: state.tasks.map(row) }, null, 1)], { type: "application/json" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "planning-sauvegarde-" + iso(new Date()) + ".json";
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    announce("Sauvegarde téléchargée : " + state.tasks.length + " tâches.");
+  });
+  $("import-file").addEventListener("change", async e => {
+    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    let data;
+    try { data = JSON.parse(await f.text()); } catch (_) { data = null; }
+    const list = data && Array.isArray(data.tasks) ? data.tasks.filter(t => t && typeof t.id === "string" && typeof t.title === "string") : null;
+    if (!list || !list.length) { alert("Ce fichier n'est pas une sauvegarde du planning."); return; }
+    const known = new Set(state.tasks.map(t => t.id));
+    const upd = list.filter(t => known.has(t.id)).length, add = list.length - upd;
+    if (!confirm("Restaurer " + list.length + " tâches (" + add + " à recréer, " + upd + " à remettre comme dans la sauvegarde) ? Les tâches absentes du fichier ne sont pas touchées.")) return;
+    snap("Restauration de " + list.length + " tâches.");
+    list.forEach(r => { const t = norm(r); const i = state.tasks.findIndex(x => x.id === t.id); if (i >= 0) { t.updated_at = state.tasks[i].updated_at; state.tasks[i] = t; } else state.tasks.push(t); });
+    after(list.length + " tâches restaurées depuis la sauvegarde.");
+  });
 
   function defaultDay() {
     const t = new Date(); const di = iso(t);
@@ -1210,6 +1345,15 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     if (!SCREEN) document.title = "Planning de l'équipe";
     const probe = await sb.from("tasks").select("debut,fin").limit(1);
     HAS_TIMES = !probe.error;
+    const hist = await sb.from("historique").select("id").limit(1);
+    HAS_HISTORY = !hist.error;
+    const team = await sb.from("team").select("id,email");
+    if (!team.error && team.data) team.data.forEach(m => { EMAIL_NAME[String(m.email).toLowerCase()] = person(m.id) ? person(m.id).name : m.id; });
+    // modifications faites hors connexion lors d'une visite précédente : on les reprend avant de relire la base
+    try {
+      const saved = JSON.parse(localStorage.getItem(QKEY) || "null");
+      if (saved && Array.isArray(saved.tasks)) { state.tasks = saved.tasks; synced = new Map(saved.synced); }
+    } catch (_) {}
     await fetchTasks();
     let timer = null;
     channel = sb.channel("tasks-live")
@@ -1219,6 +1363,7 @@ html.ecran .lday h3 { font-size: 1.4rem; }
 
     // filet de sécurité : relecture toutes les 2 minutes, au retour du réseau et quand la page redevient visible
     const refresh = () => { if (document.visibilityState === "visible" && !dlg && !drag && !kb) saving.then(fetchTasks); };
+    setInterval(() => { if (navigator.onLine && localDiff().length) save(); }, 30000);
     setInterval(refresh, 120000);
     window.addEventListener("online", refresh);
     document.addEventListener("visibilitychange", refresh);

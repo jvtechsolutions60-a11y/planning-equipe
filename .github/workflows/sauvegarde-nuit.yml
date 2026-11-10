@@ -1,0 +1,37 @@
+# Sauvegarde chiffrée du planning, chaque nuit à 3 h (heure de Paris en hiver).
+# Le fichier est chiffré (7z, AES-256) avant d'être stocké : le dépôt étant public, rien n'est lisible sans le mot de passe.
+# Secrets à créer dans Settings > Secrets and variables > Actions :
+#   SUPABASE_SECRET_KEY  clé secrète Supabase (Project Settings > API Keys > Secret keys)
+#   BACKUP_PASSWORD      mot de passe de votre choix, gardé en lieu sûr (il sert à ouvrir les sauvegardes)
+# Sans ces secrets, la tâche s'arrête sans erreur.
+name: Sauvegarde de nuit
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  sauvegarde:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Exporter et chiffrer
+        env:
+          KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          PASS: ${{ secrets.BACKUP_PASSWORD }}
+        run: |
+          if [ -z "$KEY" ] || [ -z "$PASS" ]; then echo "Secrets absents : sauvegarde non configurée."; exit 0; fi
+          d=$(date -u +%Y-%m-%d)
+          curl -sf "https://fjnhuytztxxpbdajvhbq.supabase.co/rest/v1/tasks?select=*" -H "apikey: $KEY" -o taches.json
+          n=$(python3 -c "import json;print(len(json.load(open('taches.json'))))")
+          echo "Tâches sauvegardées : $n"
+          python3 -c "import json,datetime;t=json.load(open('taches.json'));json.dump({'app':'planning-equipe','version':1,'exporte_le':datetime.datetime.utcnow().isoformat()+'Z','tasks':t},open('planning-sauvegarde-$d.json','w'),ensure_ascii=False)"
+          7z a -t7z -mhe=on -p"$PASS" "planning-sauvegarde-$d.7z" "planning-sauvegarde-$d.json" > /dev/null
+          rm taches.json "planning-sauvegarde-$d.json"
+      - name: Conserver 90 jours
+        if: ${{ hashFiles('*.7z') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: planning-sauvegarde
+          path: "*.7z"
+          retention-days: 90
