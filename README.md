@@ -70,6 +70,24 @@ Le code est dans `scripts/recap-hebdo.mjs` et `.github/workflows/recap-hebdo.yml
 - **Liste de la semaine** : onglet du même nom, avec les tâches à cocher une fois faites.
 - **Annuler** la dernière action : bouton dans le message qui s'affiche en bas.
 
+## Écran mural
+
+Le planning se met à jour tout seul : les modifications arrivent en direct, et la page relit tout en plus toutes les 2 minutes et après une coupure réseau. À minuit, la colonne « aujourd'hui » avance d'elle-même.
+
+Pour un écran d'affichage, ajoutez `?ecran=1` à l'adresse : plein écran, gros caractères, heure affichée, lecture seule (rien ne se modifie en touchant l'écran), écran maintenu allumé, et le week-end l'écran montre déjà la semaine suivante.
+
+| Adresse | Affiche |
+|---|---|
+| `…/planning-equipe/?ecran=1` | toute l'équipe |
+| `…/planning-equipe/?ecran=1&qui=leo` | une seule personne (`leo`, `julien` ou `justine`) |
+| `…/planning-equipe/?ecran=1&qui=leo&vue=liste` | une seule personne, en liste par jour |
+
+Mise en place, une fois :
+
+1. Sur l'appareil de l'écran, ouvrez l'adresse normale du planning et connectez-vous avec une adresse de l'équipe (ouvrez l'email de connexion sur ce même appareil). La connexion reste ensuite mémorisée.
+2. Ouvrez l'adresse avec `?ecran=1` en plein écran (touche F11), ou réglez le navigateur pour l'ouvrir au démarrage en mode kiosque, par exemple `chromium --kiosk "https://…/planning-equipe/?ecran=1&qui=leo"`.
+3. Désactivez la mise en veille de l'écran dans les réglages de l'appareil.
+
 ## Ajouter ou retirer une personne
 
 1. Dans Supabase, table `team` : ajoutez ou supprimez la ligne (identifiant, prénom, email).
