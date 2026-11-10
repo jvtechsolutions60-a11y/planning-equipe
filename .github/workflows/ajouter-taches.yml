@@ -1,0 +1,25 @@
+# Ajoute au planning les tâches déposées dans le dossier taches/ (demandes vocales traitées par Claude).
+# Se lance à chaque envoi d'un fichier dans taches/, sur n'importe quelle branche.
+# Secret GitHub nécessaire : SUPABASE_SECRET_KEY (le même que pour la sauvegarde de nuit).
+name: Ajouter des tâches
+
+on:
+  push:
+    paths:
+      - "taches/**"
+  workflow_dispatch:
+
+jobs:
+  ajouter:
+    runs-on: ubuntu-latest
+    steps:
+      # Node est déjà installé sur la machine GitHub : on ne récupère que les fichiers utiles, pour aller plus vite.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            taches
+            scripts/ajouter-taches.mjs
+          sparse-checkout-cone-mode: false
+      - run: node scripts/ajouter-taches.mjs
+        env:
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}

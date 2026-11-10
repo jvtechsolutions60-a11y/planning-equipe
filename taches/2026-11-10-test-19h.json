@@ -1,0 +1,10 @@
+[
+  {
+    "title": "Intervention test",
+    "date": "2026-11-10",
+    "people": ["julien", "leo"],
+    "debut": "19:00",
+    "fin": "20:00",
+    "dur": 1
+  }
+]

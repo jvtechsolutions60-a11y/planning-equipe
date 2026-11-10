@@ -163,3 +163,7 @@ La page suit le RGAA 4.1 (niveau AA) : contrastes vérifiés en thème clair et 
 | `supabase/fiabilite.sql` | ajoute l'historique des modifications |
 | `supabase/interventions.sql` | ajoute types, statuts, clients, modèles et interventions sur plusieurs jours |
 | `vendor/supabase-js-2.117.3.js` | client Supabase |
+
+## Ajouter des tâches en vocal (par Claude)
+
+Dictez la tâche à Claude dans le projet : il dépose un fichier dans `taches/` et l'action **Ajouter des tâches** l'écrit dans le planning. Il faut une seule fois le secret GitHub `SUPABASE_SECRET_KEY` (Settings > Secrets and variables > Actions), le même que pour la sauvegarde de nuit.
