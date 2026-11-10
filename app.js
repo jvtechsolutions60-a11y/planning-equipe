@@ -19,7 +19,36 @@
   const durLabel = n => { const h = Math.floor(n), m = Math.round((n - h) * 60); return h + " h" + (m ? " " + pad(m) : ""); };
   const DAY_H = 7, WEEK_H = 35;
   const REP_LABEL = { day: "chaque jour", week: "chaque semaine", "2week": "toutes les 2 sem.", month: "chaque mois" };
-  // dates d'une série, jours ouvrés uniquement (un samedi ou un dimanche passe au lundi) ;
+  // ---- jours fériés (France métropolitaine), calculés sur place, sans service externe ----
+  // Lundi de Pentecôte : journée de solidarité, souvent travaillée. Mettre true si l'entreprise le travaille.
+  const PENTECOTE_TRAVAILLEE = false;
+  const ferieCache = new Map();
+  function feriesDe(y) {
+    if (ferieCache.has(y)) return ferieCache.get(y);
+    // dimanche de Pâques (algorithme de Meeus, calendrier grégorien)
+    const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25),
+      g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4,
+      l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451),
+      mois = Math.floor((h + l - 7 * m + 114) / 31), jour = ((h + l - 7 * m + 114) % 31) + 1;
+    const paques = new Date(y, mois - 1, jour), out = new Map();
+    const fixe = (mm, dd, nom) => out.set(iso(new Date(y, mm - 1, dd)), nom);
+    fixe(1, 1, "Jour de l'an");
+    out.set(iso(addDays(paques, 1)), "Lundi de Pâques");
+    fixe(5, 1, "Fête du Travail");
+    fixe(5, 8, "Victoire 1945");
+    out.set(iso(addDays(paques, 39)), "Ascension");
+    if (!PENTECOTE_TRAVAILLEE) out.set(iso(addDays(paques, 50)), "Lundi de Pentecôte");
+    fixe(7, 14, "Fête nationale");
+    fixe(8, 15, "Assomption");
+    fixe(11, 1, "Toussaint");
+    fixe(11, 11, "Armistice");
+    fixe(12, 25, "Noël");
+    ferieCache.set(y, out);
+    return out;
+  }
+  // nom du jour férié pour une date ISO, ou "" si ce n'en est pas un
+  const ferie = di => feriesDe(+di.slice(0, 4)).get(di) || "";
+  // dates d'une série, jours ouvrés uniquement (un samedi ou un dimanche passe au lundi ; la série quotidienne saute les jours fériés) ;
   // au-delà de MAX_OCC occurrences, la liste renvoyée en contient une de plus pour signaler le dépassement
   const MAX_OCC = 260;
   function seriesDates(start, rep, until) {
@@ -27,7 +56,7 @@
     let k = 1;
     while (out.length <= MAX_OCC) {
       let d;
-      if (rep === "day") { d = addDays(first, k); if (d.getDay() === 0 || d.getDay() === 6) { k++; continue; } }
+      if (rep === "day") { d = addDays(first, k); if (d.getDay() === 0 || d.getDay() === 6 || ferie(iso(d))) { k++; continue; } }
       else if (rep === "week") d = addDays(first, 7 * k);
       else if (rep === "2week") d = addDays(first, 14 * k);
       else {
@@ -121,9 +150,10 @@
       weekDays.forEach((d, i) => {
         const mins = of(d).reduce((s, t) => s + workMin(t), 0);
         week += mins; if (mins) daysWorked++;
-        const offs = all(d).filter(isOff), wd = (parse(d).getDay() + 6) % 7, share = wd < 5 && p.jours ? p.jours[wd] : 1;
+        const offs = all(d).filter(isOff), wd = (parse(d).getDay() + 6) % 7, fe = ferie(d), share = fe ? 0 : wd < 5 && p.jours ? p.jours[wd] : 1;
         if (offs.length && mins) add("fort", d, "Pendant : " + KIND_SHORT[offs[0].kind].toLowerCase(), "travail prévu pendant « " + offs[0].title + " » (" + KIND_SHORT[offs[0].kind].toLowerCase() + ").");
-        if (mins && share === 0) add("fort", d, "Jour non travaillé", "travail prévu un jour non travaillé.");
+        if (mins && fe) add("fort", d, "Jour férié", "travail prévu un jour férié (" + fe + ").");
+        else if (mins && share === 0) add("fort", d, "Jour non travaillé", "travail prévu un jour non travaillé.");
         else if (mins > share * DAY_H * 60 && share < 1) add("info", d, "Demi-journée", durLabel(mins / 60) + " prévues sur une demi-journée de travail.");
         if (mins > L.jour) add("fort", d, "Plus de " + L.jour / 60 + " h de travail", durLabel(mins / 60) + " de travail, au-delà du maximum de " + L.jour / 60 + " h par jour.");
         const tm = timed(d);
@@ -444,8 +474,8 @@
     if (cur.r >= rows.length) cur.r = rows.length - 1;
     let html = `<div class="row" role="row" aria-rowindex="1"><div class="corner" role="columnheader" aria-colindex="1">Équipe</div>`;
     days.forEach((d, i) => {
-      const today = iso(d) === todayIso;
-      html += `<div class="dayhead${today ? " today" : ""}" role="columnheader" aria-colindex="${i + 2}">${DAYS[i]}${today ? `<span class="badge">aujourd'hui</span>` : ""}<b>${fmtShort(d)}</b></div>`;
+      const today = iso(d) === todayIso, fe = ferie(iso(d));
+      html += `<div class="dayhead${today ? " today" : ""}${fe ? " ferie" : ""}" role="columnheader" aria-colindex="${i + 2}">${DAYS[i]}${today ? `<span class="badge">aujourd'hui</span>` : ""}<b>${fmtShort(d)}</b>${fe ? `<span class="fname">Férié · ${fe}</span>` : ""}</div>`;
     });
     html += `</div>`;
     grid.classList.toggle("solo", rows.length === 1);
@@ -453,27 +483,31 @@
     rows.forEach((p, r) => {
       const mine = state.tasks.filter(t => t.people.includes(p.id) && weekIsos.some(di => occursOn(t, di)));
       const total = weekIsos.reduce((s, di) => s + mine.filter(t => occursOn(t, di) && counts(t)).reduce((a, t) => a + t.dur, 0), 0);
-      const pct = Math.min(100, total / p.base * 100);
+      // capacité de la semaine : la base au prorata des jours travaillés, moins les jours fériés
+      const parts = (p.jours || [1, 1, 1, 1, 1]), allParts = parts.reduce((a, x) => a + x, 0) || 1;
+      const nFerie = weekIsos.filter(ferie).length;
+      const cap = Math.round(p.base * parts.reduce((a, x, c) => a + (ferie(weekIsos[c]) ? 0 : x), 0) / allParts * 2) / 2;
+      const pct = cap ? Math.min(100, total / cap * 100) : (total ? 100 : 0);
       const isMe = p.id === state.me && !SCREEN;
       const extra = total - p.base;
       html += `<div class="row" role="row" aria-rowindex="${r + 2}"><div class="person${isMe ? " is-me" : ""}" role="rowheader" aria-colindex="1" style="--pc:${p.color};--ps:${p.soft}">
         <span class="pname"><span class="dot" aria-hidden="true"></span>${p.name}${isMe ? ` <span class="you">(vous)</span>` : ""}</span>
-        <span class="load${extra > 0 ? " over" : ""}">${durLabel(total)} / ${p.base} h</span>
+        <span class="load${extra > 0 || total > cap ? " over" : ""}">${durLabel(total)} / ${durLabel(cap)}${nFerie ? `<span class="sr-only"> (semaine avec ${nFerie} jour${nFerie > 1 ? "s" : ""} férié${nFerie > 1 ? "s" : ""})</span>` : ""}</span>
         ${extra > 0 ? `<span class="sup">+ ${durLabel(extra)} ${p.base >= 35 ? "supplémentaires" : "complémentaires"}</span>` : ""}
-        <span class="bar${extra > 0 ? " over" : ""}" aria-hidden="true"><i style="width:${pct}%"></i></span>
+        <span class="bar${extra > 0 || total > cap ? " over" : ""}" aria-hidden="true"><i style="width:${pct}%"></i></span>
       </div>`;
       weekIsos.forEach((di, c) => {
         const ts = mine.filter(t => occursOn(t, di)).sort((x, y) => (toMin(x.debut) ?? 9999) - (toMin(y.debut) ?? 9999));
         const sum = ts.filter(counts).reduce((s, t) => s + t.dur, 0);
-        const share = p.jours ? p.jours[c] : 1, cap = DAY_H * share;
+        const fe = ferie(di), share = fe ? 0 : p.jours ? p.jours[c] : 1, cap = DAY_H * share;
         const al = shownAlerts.filter(x => x.pid === p.id && x.date === di);
         const strong = al.some(x => x.niv === "fort");
         const target = kb && kb.r === r && kb.c === c;
         const active = G && r === cur.r && c === cur.c;
-        html += `<div class="cell${sum > cap && share > 0 ? " over" : ""}${share === 0 ? " nowork" : ""}${strong ? " alert" : ""}${di === todayIso ? " today" : ""}${target ? " kb-target" : ""}" role="${G ? "gridcell" : "cell"}" aria-colindex="${c + 2}"${G ? ` tabindex="${active ? 0 : -1}"` : ""} data-r="${r}" data-c="${c}" data-drop="cell" data-person="${p.id}" data-date="${di}">
-          ${share < 1 ? `<span class="daynote">${share === 0 ? "Non travaillé" : "Demi-journée"}</span>` : ""}
+        html += `<div class="cell${sum > cap && share > 0 ? " over" : ""}${share === 0 ? " nowork" : ""}${fe ? " ferie" : ""}${strong ? " alert" : ""}${di === todayIso ? " today" : ""}${target ? " kb-target" : ""}" role="${G ? "gridcell" : "cell"}" aria-colindex="${c + 2}"${G ? ` tabindex="${active ? 0 : -1}"` : ""} data-r="${r}" data-c="${c}" data-drop="cell" data-person="${p.id}" data-date="${di}">
+          ${share < 1 ? `<span class="daynote">${fe ? "Férié" : share === 0 ? "Non travaillé" : "Demi-journée"}</span>` : ""}
           ${ts.map(t => taskHTML(t, p.id, di)).join("")}
-          ${sum ? `<span class="flag${sum > cap ? " over" : ""}">${sum > cap ? "Surchargé : " : ""}${durLabel(sum)} / ${durLabel(cap)}</span>` : ""}
+          ${sum ? (fe ? `<span class="flag">${durLabel(sum)}</span>` : `<span class="flag${sum > cap ? " over" : ""}">${sum > cap ? "Surchargé : " : ""}${durLabel(sum)} / ${durLabel(cap)}</span>`) : ""}
           ${al.length ? `<ul class="alerts">${al.map(x => `<li class="${x.niv === "fort" ? "" : "minor"}"><span aria-hidden="true">⚠ </span>${esc(x.court)}</li>`).join("")}</ul>` : ""}
           ${SCREEN ? "" : `<button type="button" class="add" tabindex="-1" data-person="${p.id}" data-date="${di}" aria-haspopup="dialog" aria-label="Ajouter une tâche pour ${p.name}, ${DAYS[c].toLowerCase()} ${fmtShort(days[c])}"><span aria-hidden="true">+</span> Ajouter</button>`}
         </div>`;
@@ -542,7 +576,7 @@
       `<button type="button" class="chip" data-filter="${p.id}" aria-pressed="${filter === p.id}"${p.color ? ` style="--pc:${p.color}"` : ""}>${p.color ? `<span class="dot" aria-hidden="true"></span>` : ""}${p.name}</button>`).join("");
     const todayIso = iso(new Date());
     $("listbody").innerHTML = days.map((d, i) => {
-      const di = iso(d);
+      const di = iso(d), fe = ferie(di);
       const today = di === todayIso;
       const ts = state.tasks.filter(t => occursOn(t, di) && t.people.length && forShown(t) && (filter === "all" || t.people.includes(filter)));
       const rows = ts.map(t => `<li><label class="lrow${isDone(t) ? " done" : ""}">
@@ -553,7 +587,7 @@
         </label></li>`).join("");
       const left = ts.filter(t => !isDone(t) && counts(t)).length;
       return `<section class="lday${today ? " today" : ""}" aria-labelledby="ld-${di}">
-        <h3 id="ld-${di}">${DAYS[i]}${today ? `<span class="badge">aujourd'hui</span>` : ""} <span class="date">${fmtShort(d)}</span><span class="count">${ts.length ? left + " à faire sur " + ts.length : "rien de prévu"}</span></h3>
+        <h3 id="ld-${di}">${DAYS[i]}${today ? `<span class="badge">aujourd'hui</span>` : ""} <span class="date">${fmtShort(d)}</span>${fe ? `<span class="fname">Férié · ${fe}</span>` : ""}<span class="count">${ts.length ? left + " à faire sur " + ts.length : fe ? "jour férié" : "rien de prévu"}</span></h3>
         ${rows ? `<ul class="lrows">${rows}</ul>` : ""}
       </section>`;
     }).join("");

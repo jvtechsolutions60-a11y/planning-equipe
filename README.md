@@ -139,6 +139,7 @@ Les seuils viennent du Code du travail et sont à vérifier avec votre conventio
 - **Reporter** : bouton dans la fiche ; on choisit le nouveau jour, la tâche garde la trace « reportée du … ».
 - **Notes** et case **À distance** pour les interventions sans déplacement.
 - **Modèles** : « Enregistrer comme modèle » dans une fiche ; le modèle est ensuite proposé en haut des nouvelles tâches.
+- **Jours fériés** : les 11 jours fériés de France métropolitaine sont calculés dans le navigateur (Pâques compris, sans service externe). Le jour est grisé et nommé dans la grille, la liste et l'écran mural, la capacité de la semaine baisse d'autant (28 h au lieu de 35 h pour un férié), le travail prévu ce jour-là est signalé et une tâche répétée chaque jour le saute. Si l'entreprise travaille le lundi de Pentecôte (journée de solidarité), mettre `PENTECOTE_TRAVAILLEE = true` dans `app.js`.
 - **Jours travaillés** : dans `PEOPLE`, `jours: [1, 1, 1, 1, 1]` du lundi au vendredi (1 = journée, 0.5 = demi-journée, 0 = non travaillé, par exemple un jour d'école pour un apprenti). Le planning grise ces jours et signale le travail prévu dessus.
 
 ## Clavier
