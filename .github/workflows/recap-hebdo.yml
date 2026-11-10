@@ -3,10 +3,11 @@
 # Pour tester : onglet Actions > « Récap du vendredi » > Run workflow.
 name: Récap du vendredi
 
+# Désactivé le 2026-11-10 (le planning est affiché sur un écran). Pour réactiver, remettre :
+#   schedule:
+#     - cron: "0 10 * * 5"
+#     - cron: "0 11 * * 5"
 on:
-  schedule:
-    - cron: "0 10 * * 5"
-    - cron: "0 11 * * 5"
   workflow_dispatch:
     inputs:
       seulement:
