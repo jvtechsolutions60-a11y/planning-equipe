@@ -25,6 +25,8 @@ create table if not exists public.tasks (
   done       boolean not null default false,
   series     text,                                -- même valeur pour toutes les occurrences d'une tâche répétée
   rep        text,                                -- day, week, 2week, month
+  debut      text check (debut ~ '^[0-2][0-9]:[0-5][0-9]$'),  -- heure de début facultative, ex. 08:00
+  fin        text check (fin ~ '^[0-2][0-9]:[0-5][0-9]$'),    -- heure de fin facultative
   updated_at timestamptz not null default now()
 );
 create index if not exists tasks_date_idx on public.tasks (date);

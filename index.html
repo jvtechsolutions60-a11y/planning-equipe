@@ -247,6 +247,35 @@ kbd { font-family: var(--f-mono); font-size: 0.75rem; border: 1px solid var(--co
 .task .rep { font-size: 0.75rem; color: var(--muted); }
 .err { color: var(--warn); font-size: 0.875rem; font-weight: 600; margin: 0; }
 
+/* navigation au clavier dans la grille et déplacement sans souris */
+.cell:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; border-radius: 0; }
+.cell.kb-target, .blist.kb-target { outline: 3px dashed var(--accent); outline-offset: -3px; background: var(--accent-soft) !important; }
+.task.grabbed { outline: 3px dashed var(--accent); outline-offset: 1px; }
+.task .h { font-family: var(--f-mono); font-weight: 600; color: var(--ink); }
+/* contrôles RH */
+.cell.alert { box-shadow: inset 0 0 0 2px var(--warn); }
+.alerts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.alerts li { font-size: 0.75rem; font-weight: 600; color: var(--warn); background: var(--warn-soft); border-left: 3px solid var(--warn); padding: 0.1rem 0.4rem; border-radius: 0.25rem; }
+.alerts li.minor { color: var(--ink); background: var(--cell); border-left-color: var(--control); font-weight: 500; }
+.sup { font-size: 0.75rem; color: var(--warn); font-weight: 600; }
+.vigil { border-bottom: 1px solid var(--line); padding-bottom: 0.9rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.vigil ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.vigil li { font-size: 0.8125rem; border-left: 3px solid var(--warn); padding-left: 0.5rem; }
+.vigil li.minor { border-left-color: var(--control); }
+.vigil li .linkbtn { text-align: left; font-weight: 600; min-height: 1.5rem; padding: 0; }
+.vigil .ok { color: var(--ok); font-weight: 600; font-size: 0.875rem; margin: 0; }
+
+/* contraste renforcé demandé par le système (prefers-contrast) */
+@media (prefers-contrast: more) {
+  :root { --line: #5a6377; --control: #3a4252; --muted: #2a3140; }
+  .task, .cell .add, .btn, .chip, .chk, input, select { border-width: 2px; }
+  .task.shared { background-image: none; }
+  .cell.today { background: var(--cell); }
+}
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --line: #aab3c4; --control: #c5ccd8; --muted: #dde2ea; }
+}
+
 @media (prefers-reduced-motion: reduce) { .ghost { transform: none; } * { scroll-behavior: auto !important; transition: none !important; } }
 @media (forced-colors: active) { .dot, .bar i, .sync::before { forced-color-adjust: none; } .task { border-left-width: 0.3rem; } }
 
@@ -344,9 +373,15 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     <div class="main" id="mainview">
       <section class="board" aria-labelledby="grid-title">
         <h2 id="grid-title" class="sr-only">Planning de la semaine</h2>
-        <div class="grid" id="grid" role="table" aria-labelledby="grid-title"></div>
+        <p id="task-help" class="sr-only">Entrée : ouvrir la tâche. Espace : la déplacer.</p>
+        <p id="grid-help" class="sr-only">Flèches : changer de case. Entrée : entrer dans la case. Dans une case : flèches haut et bas pour passer d'une tâche à l'autre, Entrée pour ouvrir une tâche, Espace pour la déplacer, Échap pour revenir à la case. Page précédente et Page suivante : changer de semaine.</p>
+        <div class="grid" id="grid" role="grid" aria-labelledby="grid-title" aria-describedby="grid-help"></div>
       </section>
-      <aside class="backlog" aria-labelledby="backlog-title">
+      <aside class="backlog" aria-label="Contrôles et tâches à prendre">
+        <section class="vigil" aria-labelledby="vigil-title">
+          <h2 id="vigil-title">Points de vigilance</h2>
+          <div id="vigil-body"></div>
+        </section>
         <h2 id="backlog-title">Tâches à prendre</h2>
         <p class="hint" id="backlog-hint">Glissez une tâche sur une ligne, cliquez sur « Prendre » pour vous l'attribuer aujourd'hui, ou ouvrez-la pour choisir la personne et le jour.</p>
         <form class="qadd" id="qadd" novalidate>
@@ -354,19 +389,20 @@ html.ecran .lday h3 { font-size: 1.4rem; }
           <input id="qtitle" autocomplete="off" placeholder="Ajouter une tâche à prendre…">
           <button class="btn" type="submit">Ajouter</button>
         </form>
-        <ul class="blist" id="blist" data-drop="backlog" aria-labelledby="backlog-title"></ul>
+        <ul class="blist" id="blist" data-drop="backlog" aria-labelledby="backlog-title" tabindex="-1"></ul>
       </aside>
     </div>
 
     <ul class="legend">
       <li>Durées en heures, sur une base de 7 h par jour et 35 h par semaine.</li>
       <li>Un jour encadré en rouge et marqué « Surchargé » dépasse 7 h de travail.</li>
-      <li>Au clavier : <kbd>←</kbd> <kbd>→</kbd> pour changer de semaine, <kbd>Entrée</kbd> sur une tâche pour l'ouvrir et la modifier.</li>
+      <li>Au clavier, dans le planning : flèches pour aller de case en case, <kbd>Entrée</kbd> pour entrer dans une case, puis <kbd>Entrée</kbd> sur une tâche pour l'ouvrir ou <kbd>Espace</kbd> pour la déplacer (flèches, puis <kbd>Entrée</kbd> pour poser, <kbd>Échap</kbd> pour annuler). <kbd>Page préc.</kbd> <kbd>Page suiv.</kbd> : semaine précédente ou suivante.</li>
     </ul>
   </main>
 </div>
 
-<div class="toast" id="toast" role="status" hidden><span id="toastmsg"></span><button type="button" id="undo">Annuler</button><button type="button" class="close" id="toast-close" aria-label="Fermer le message"><span aria-hidden="true">×</span></button></div>
+<div id="annonce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+<div class="toast" id="toast" hidden><span id="toastmsg"></span><button type="button" id="undo">Annuler</button><button type="button" class="close" id="toast-close" aria-label="Fermer le message"><span aria-hidden="true">×</span></button></div>
 
 <div class="overlay" id="scr-overlay" hidden>
   <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="scr-title" aria-describedby="scr-desc"><form class="modal" id="scr-form" novalidate>
@@ -398,6 +434,11 @@ html.ecran .lday h3 { font-size: 1.4rem; }
       <div class="durs" id="durs" role="group" aria-label="Durées rapides"><button type="button" data-dur="0.5">30 min</button><button type="button" data-dur="1">1 h</button><button type="button" data-dur="2">2 h</button><button type="button" data-dur="3.5">½ journée</button><button type="button" data-dur="7">1 journée</button></div></div>
     <fieldset class="field" aria-describedby="f-people-hint"><legend>Attribuée à</legend><div class="checks" id="f-people"></div><span class="hint2" id="f-people-hint">Cochez plusieurs personnes pour une tâche commune. Aucune case cochée : la tâche va dans la liste à prendre.</span></fieldset>
     <div class="field"><label for="f-date">Jour</label><input type="date" id="f-date"></div>
+    <div class="row2" id="f-time-row" hidden>
+      <div class="field"><label for="f-debut">Début (facultatif)</label><input type="time" id="f-debut" step="300" aria-describedby="f-time-hint"></div>
+      <div class="field"><label for="f-fin">Fin (facultatif)</label><input type="time" id="f-fin" step="300" aria-describedby="f-time-hint"></div>
+    </div>
+    <p class="hint2" id="f-time-hint" hidden>Avec un début et une fin, la durée se calcule seule et le planning vérifie les chevauchements, le repos de 11 h et les pauses. Un créneau ne peut pas passer minuit.</p>
     <div class="row2" id="f-rep-row">
       <div class="field"><label for="f-rep">Répéter</label><select id="f-rep">
         <option value="">Jamais</option>
@@ -429,10 +470,11 @@ html.ecran .lday h3 { font-size: 1.4rem; }
 <script src="config.js"></script>
 <script>
 (function () {
+  // base : heures par semaine prévues au contrat (35 = temps plein). mineur : true pour un salarié ou apprenti de moins de 18 ans (seuils plus stricts).
   const PEOPLE = [
-    { id: "leo", name: "Léo", color: "var(--p-leo)", soft: "var(--p-leo-soft)" },
-    { id: "julien", name: "Julien", color: "var(--p-julien)", soft: "var(--p-julien-soft)" },
-    { id: "justine", name: "Justine", color: "var(--p-justine)", soft: "var(--p-justine-soft)" }
+    { id: "leo", name: "Léo", color: "var(--p-leo)", soft: "var(--p-leo-soft)", base: 35, mineur: false },
+    { id: "julien", name: "Julien", color: "var(--p-julien)", soft: "var(--p-julien-soft)", base: 35, mineur: false },
+    { id: "justine", name: "Justine", color: "var(--p-justine)", soft: "var(--p-justine-soft)", base: 35, mineur: false }
   ];
   const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
   const KEY = "planning-equipe-v5";
@@ -476,10 +518,64 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     return;
   }
   const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
-  const FIELDS = ["id", "title", "client", "dur", "date", "people", "done", "series", "rep"];
+  // les colonnes debut et fin n'existent qu'une fois supabase/horaires.sql passé : on ne les envoie qu'à ce moment-là
+  let HAS_TIMES = false;
+  const fields = () => ["id", "title", "client", "dur", "date", "people", "done", "series", "rep"].concat(HAS_TIMES ? ["debut", "fin"] : []);
   const norm = r => ({ id: r.id, title: r.title, client: r.client || "", dur: Number(r.dur) || 1, date: r.date || null,
-    people: Array.isArray(r.people) ? r.people : [], done: !!r.done, series: r.series || null, rep: r.rep || null });
-  const row = t => { const o = {}; FIELDS.forEach(f => { o[f] = f in t ? t[f] : null; }); o.client = o.client || ""; o.done = !!o.done; o.people = o.people || []; return o; };
+    people: Array.isArray(r.people) ? r.people : [], done: !!r.done, series: r.series || null, rep: r.rep || null,
+    debut: r.debut || null, fin: r.fin || null });
+  const row = t => { const o = {}; fields().forEach(f => { o[f] = f in t ? t[f] : null; }); o.client = o.client || ""; o.done = !!o.done; o.people = o.people || []; return o; };
+
+  // ---- horaires et règles RH ----
+  const toMin = s => { const m = /^(\d{1,2}):(\d{2})/.exec(s || ""); return m ? +m[1] * 60 + +m[2] : null; };
+  const hasTime = t => toMin(t.debut) !== null && toMin(t.fin) !== null && toMin(t.fin) > toMin(t.debut);
+  const workMin = t => hasTime(t) ? toMin(t.fin) - toMin(t.debut) : Math.round(t.dur * 60);
+  const JOURS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+  const dayLabel = di => { const d = parse(di); return JOURS[d.getDay()] + " " + fmtShort(d); };
+  // seuils par défaut du Code du travail (à adapter à la convention collective) ; mineurs : règles des jeunes travailleurs
+  const LIMITS = {
+    adulte: { jour: 10 * 60, sem: 48 * 60, repos: 11 * 60, amp: 13 * 60, pauseApres: 6 * 60, pause: 20 },
+    mineur: { jour: 8 * 60, sem: 35 * 60, repos: 12 * 60, amp: 12 * 60, pauseApres: 4 * 60 + 30, pause: 30 }
+  };
+  // renvoie la liste des anomalies de la semaine : { niv: "fort" | "info", pid, date, court, long }
+  function verifier(weekDays) {
+    const out = [], before = iso(addDays(parse(weekDays[0]), -1));
+    PEOPLE.forEach(p => {
+      const L = p.mineur ? LIMITS.mineur : LIMITS.adulte;
+      const of = d => state.tasks.filter(t => t.date === d && t.people.includes(p.id));
+      const timed = d => of(d).filter(hasTime).map(t => ({ t, a: toMin(t.debut), b: toMin(t.fin) })).sort((x, y) => x.a - y.a);
+      const add = (niv, date, court, long) => out.push({ niv, pid: p.id, date, court, long: p.name + (date ? ", " + dayLabel(date) : "") + " : " + long });
+      let week = 0, daysWorked = 0;
+      weekDays.forEach((d, i) => {
+        const mins = of(d).reduce((s, t) => s + workMin(t), 0);
+        week += mins; if (mins) daysWorked++;
+        if (mins > L.jour) add("fort", d, "Plus de " + L.jour / 60 + " h de travail", durLabel(mins / 60) + " de travail, au-delà du maximum de " + L.jour / 60 + " h par jour.");
+        const tm = timed(d);
+        for (let k = 1; k < tm.length; k++) for (let j = 0; j < k; j++) if (tm[k].a < tm[j].b)
+          add("fort", d, "Chevauchement", "« " + tm[j].t.title + " » (" + tm[j].t.debut + "–" + tm[j].t.fin + ") et « " + tm[k].t.title + " » (" + tm[k].t.debut + "–" + tm[k].t.fin + ") se chevauchent.");
+        if (tm.length) {
+          const amp = Math.max(...tm.map(x => x.b)) - tm[0].a;
+          if (amp > L.amp) add("fort", d, "Amplitude de " + durLabel(amp / 60), "amplitude de " + durLabel(amp / 60) + " entre le début et la fin de la journée, au-delà de " + L.amp / 60 + " h.");
+          // séquences de travail : deux créneaux séparés de moins que la pause comptent comme une seule séquence
+          let s0 = tm[0].a, e0 = tm[0].b;
+          tm.slice(1).concat([{ a: 1e9, b: 1e9 }]).forEach(x => {
+            if (x.a - e0 < L.pause) { e0 = Math.max(e0, x.b); return; }
+            if (e0 - s0 > L.pauseApres) add("info", d, "Pause à prévoir", durLabel((e0 - s0) / 60) + " de travail d'affilée sans pause de " + L.pause + " min.");
+            s0 = x.a; e0 = x.b;
+          });
+        }
+        const prev = timed(i === 0 ? before : weekDays[i - 1]);
+        if (prev.length && tm.length) {
+          const rest = 24 * 60 - Math.max(...prev.map(x => x.b)) + tm[0].a;
+          if (rest < L.repos) add("fort", d, "Repos de " + durLabel(rest / 60), "seulement " + durLabel(rest / 60) + " de repos depuis la veille, minimum " + L.repos / 60 + " h.");
+        }
+      });
+      if (week > L.sem) add("fort", null, "", durLabel(week / 60) + " sur la semaine, au-delà du maximum de " + L.sem / 60 + " h.");
+      else if (week > p.base * 60) add("info", null, "", durLabel((week - p.base * 60) / 60) + (p.base >= 35 ? " d'heures supplémentaires" : " d'heures complémentaires") + " prévues (base " + p.base + " h).");
+      if (daysWorked === 7) add("fort", null, "", "aucun jour de repos dans la semaine.");
+    });
+    return out;
+  }
   let synced = new Map(), lastOk = 0;
   const hhmm = d => pad(d.getHours()) + ":" + pad(d.getMinutes());
   let state = { tasks: [], me: null };
@@ -529,6 +625,8 @@ html.ecran .lday h3 { font-size: 1.4rem; }
 
   const $ = id => document.getElementById(id);
   const grid = $("grid"), blist = $("blist");
+  // annonces pour les lecteurs d'écran : une seule région, vidée puis remplie pour que deux messages identiques soient lus
+  function announce(msg) { const r = $("annonce"); r.textContent = ""; setTimeout(() => { r.textContent = msg; }, 60); }
   const names = ids => { const n = ids.map(id => person(id).name); return n.length > 1 ? n.slice(0, -1).join(", ") + " et " + n[n.length - 1] : n[0]; };
 
   // annulation de la dernière action : le message reste affiché jusqu'à ce qu'on le ferme (pas de limite de temps)
@@ -625,54 +723,79 @@ html.ecran .lday h3 { font-size: 1.4rem; }
   function taskHTML(t, row) {
     const p = person(row);
     const others = t.people.filter(x => x !== row).map(x => person(x).name);
-    const act = SCREEN ? "" : ` role="button" tabindex="0" aria-haspopup="dialog"`;
-    return `<div class="task${t.people.length > 1 ? " shared" : ""}${t.done ? " done" : ""}" data-id="${t.id}" data-from="${row || ""}"${act} style="--pc:${p ? p.color : "var(--control)"}">
+    // dans la grille, une seule tabulation pour tout le tableau : les tâches s'atteignent avec les flèches (tabindex -1)
+    const act = SCREEN ? "" : ` role="button" tabindex="${row ? -1 : 0}" aria-haspopup="dialog" aria-describedby="task-help"`;
+    const grabbed = kb && kb.id === t.id && (kb.from || "") === (row || "");
+    return `<div class="task${t.people.length > 1 ? " shared" : ""}${t.done ? " done" : ""}${grabbed ? " grabbed" : ""}" data-id="${t.id}" data-from="${row || ""}"${act} style="--pc:${p ? p.color : "var(--control)"}">
       <span class="t">${t.done ? `<span class="sr-only">Faite : </span>` : ""}${esc(t.title)}</span>
       ${t.people.length > 1 ? `<span class="with">Commune${row ? " avec " + others.join(", ") : " : " + t.people.map(x => person(x).name).join(", ")}</span>` : ""}
-      <span class="m">${t.client ? `<span>${esc(t.client)}</span>` : ""}<span class="d">${durLabel(t.dur)}</span>${t.series ? `<span class="rep"><span aria-hidden="true">↻ </span>${REP_LABEL[t.rep] || "répétée"}</span>` : ""}</span>
+      <span class="m">${t.client ? `<span>${esc(t.client)}</span>` : ""}${hasTime(t) ? `<span class="h">${t.debut}–${t.fin}</span>` : ""}<span class="d">${durLabel(t.dur)}</span>${t.series ? `<span class="rep"><span aria-hidden="true">↻ </span>${REP_LABEL[t.rep] || "répétée"}</span>` : ""}</span>
     </div>`;
   }
 
+  let shownAlerts = [];
+  const akey = a => a.pid + "|" + a.date + "|" + a.long;
+  const shownRows = () => QUI ? QUI.map(person) : PEOPLE;
+
   function render() {
+    // mémorise l'élément qui a le focus pour le retrouver après le nouveau rendu
+    const a = document.activeElement;
+    const focusKey = a && (grid.contains(a) || blist.contains(a)) ? { id: a.dataset.id, from: a.dataset.from, add: a.classList.contains("add"), cell: a.classList.contains("cell"), inGrid: grid.contains(a) } : null;
     const todayIso = iso(new Date());
     const days = DAYS.map((_, i) => addDays(monday, i));
     const fri = days[4];
     $("weeklabel").textContent = monday.getDate() + (monday.getMonth() === fri.getMonth() ? "" : " " + MONTHS[monday.getMonth()]) + " – " + fri.getDate() + " " + MONTHS[fri.getMonth()];
     $("eyebrow").textContent = "Semaine " + isoWeek(monday) + " · " + fri.getFullYear();
     $("start").hidden = state.tasks.length > 0;
+    const weekIsos = days.map(iso);
+    shownAlerts = verifier([0, 1, 2, 3, 4, 5, 6].map(i => iso(addDays(monday, i))));
 
-    let html = `<div class="row" role="row"><div class="corner" role="columnheader">Équipe</div>`;
+    // grille interactive (role="grid") ; en mode écran, simple tableau en lecture seule
+    const G = !SCREEN;
+    const rows = shownRows();
+    grid.setAttribute("role", G ? "grid" : "table");
+    grid.setAttribute("aria-rowcount", rows.length + 1);
+    grid.setAttribute("aria-colcount", 6);
+    if (cur.r >= rows.length) cur.r = rows.length - 1;
+    let html = `<div class="row" role="row" aria-rowindex="1"><div class="corner" role="columnheader" aria-colindex="1">Équipe</div>`;
     days.forEach((d, i) => {
       const today = iso(d) === todayIso;
-      html += `<div class="dayhead${today ? " today" : ""}" role="columnheader">${DAYS[i]}${today ? `<span class="badge">aujourd'hui</span>` : ""}<b>${fmtShort(d)}</b></div>`;
+      html += `<div class="dayhead${today ? " today" : ""}" role="columnheader" aria-colindex="${i + 2}">${DAYS[i]}${today ? `<span class="badge">aujourd'hui</span>` : ""}<b>${fmtShort(d)}</b></div>`;
     });
     html += `</div>`;
-    const weekIsos = days.map(iso);
-    const rows = QUI ? QUI.map(person) : PEOPLE;
     grid.classList.toggle("solo", rows.length === 1);
     grid.style.setProperty("--rows", rows.length);
-    rows.forEach(p => {
+    rows.forEach((p, r) => {
       const mine = state.tasks.filter(t => t.people.includes(p.id) && weekIsos.includes(t.date));
       const total = mine.reduce((s, t) => s + t.dur, 0);
-      const pct = Math.min(100, total / WEEK_H * 100);
+      const pct = Math.min(100, total / p.base * 100);
       const isMe = p.id === state.me && !SCREEN;
-      html += `<div class="row" role="row"><div class="person${isMe ? " is-me" : ""}" role="rowheader" style="--pc:${p.color};--ps:${p.soft}">
+      const extra = total - p.base;
+      html += `<div class="row" role="row" aria-rowindex="${r + 2}"><div class="person${isMe ? " is-me" : ""}" role="rowheader" aria-colindex="1" style="--pc:${p.color};--ps:${p.soft}">
         <span class="pname"><span class="dot" aria-hidden="true"></span>${p.name}${isMe ? ` <span class="you">(vous)</span>` : ""}</span>
-        <span class="load${total > WEEK_H ? " over" : ""}">${durLabel(total)} / ${WEEK_H} h${total > WEEK_H ? " (dépassé)" : ""}</span>
-        <span class="bar${total > WEEK_H ? " over" : ""}" aria-hidden="true"><i style="width:${pct}%"></i></span>
+        <span class="load${extra > 0 ? " over" : ""}">${durLabel(total)} / ${p.base} h</span>
+        ${extra > 0 ? `<span class="sup">+ ${durLabel(extra)} ${p.base >= 35 ? "supplémentaires" : "complémentaires"}</span>` : ""}
+        <span class="bar${extra > 0 ? " over" : ""}" aria-hidden="true"><i style="width:${pct}%"></i></span>
       </div>`;
-      weekIsos.forEach((di, i) => {
-        const ts = mine.filter(t => t.date === di);
+      weekIsos.forEach((di, c) => {
+        const ts = mine.filter(t => t.date === di).sort((x, y) => (toMin(x.debut) ?? 9999) - (toMin(y.debut) ?? 9999));
         const sum = ts.reduce((s, t) => s + t.dur, 0);
-        html += `<div class="cell${sum > DAY_H ? " over" : ""}${di === todayIso ? " today" : ""}" role="cell" data-drop="cell" data-person="${p.id}" data-date="${di}">
+        const al = shownAlerts.filter(x => x.pid === p.id && x.date === di);
+        const strong = al.some(x => x.niv === "fort");
+        const target = kb && kb.r === r && kb.c === c;
+        const active = G && r === cur.r && c === cur.c;
+        html += `<div class="cell${sum > DAY_H ? " over" : ""}${strong ? " alert" : ""}${di === todayIso ? " today" : ""}${target ? " kb-target" : ""}" role="${G ? "gridcell" : "cell"}" aria-colindex="${c + 2}"${G ? ` tabindex="${active ? 0 : -1}"` : ""} data-r="${r}" data-c="${c}" data-drop="cell" data-person="${p.id}" data-date="${di}">
           ${ts.map(t => taskHTML(t, p.id)).join("")}
           ${ts.length ? `<span class="flag${sum > DAY_H ? " over" : ""}">${sum > DAY_H ? "Surchargé : " : ""}${durLabel(sum)} / ${DAY_H} h</span>` : ""}
-          ${SCREEN ? "" : `<button type="button" class="add" data-person="${p.id}" data-date="${di}" aria-haspopup="dialog" aria-label="Ajouter une tâche pour ${p.name}, ${DAYS[i].toLowerCase()} ${fmtShort(days[i])}"><span aria-hidden="true">+</span> Ajouter</button>`}
+          ${al.length ? `<ul class="alerts">${al.map(x => `<li class="${x.niv === "fort" ? "" : "minor"}"><span aria-hidden="true">⚠ </span>${esc(x.court)}</li>`).join("")}</ul>` : ""}
+          ${SCREEN ? "" : `<button type="button" class="add" tabindex="-1" data-person="${p.id}" data-date="${di}" aria-haspopup="dialog" aria-label="Ajouter une tâche pour ${p.name}, ${DAYS[c].toLowerCase()} ${fmtShort(days[c])}"><span aria-hidden="true">+</span> Ajouter</button>`}
         </div>`;
       });
       html += `</div>`;
     });
     grid.innerHTML = html;
+    blist.classList.toggle("kb-target", !!(kb && kb.r === rows.length));
+    renderVigil();
 
     const back = state.tasks.filter(t => !t.people.length || !t.date);
     blist.innerHTML = back.length
@@ -684,6 +807,37 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     $("listview").hidden = view !== "list";
     $("tab-grid").setAttribute("aria-pressed", view === "grid");
     $("tab-list").setAttribute("aria-pressed", view === "list");
+
+    // retour du focus au même endroit (même tâche, même bouton ou même case)
+    if (kb) {
+      const el = kb.r === rows.length ? blist : cellAt(kb.r, kb.c);
+      if (el) { if (el !== blist) el.tabIndex = 0; if (el !== document.activeElement) el.focus(); }
+    } else if (focusKey) {
+      let el = null;
+      if (focusKey.id) el = document.querySelector(`.task[data-id="${focusKey.id}"][data-from="${focusKey.from || ""}"]`);
+      if (!el && focusKey.inGrid) { const c = cellAt(cur.r, cur.c); el = c && focusKey.add ? c.querySelector(".add") : c; }
+      if (!el && !focusKey.inGrid) el = blist;
+      if (el && el !== document.activeElement) el.focus();
+    }
+  }
+
+  // après une action : enregistre, redessine, puis annonce le résultat et les nouvelles anomalies graves
+  function after(msg, focusFn) {
+    const prev = new Set(shownAlerts.map(akey));
+    save(); render();
+    if (focusFn) focusFn();
+    const fresh = shownAlerts.filter(a => a.niv === "fort" && !prev.has(akey(a)));
+    announce(msg + (fresh.length ? " Attention : " + fresh.map(a => a.long).join(" ") : ""));
+  }
+
+  function renderVigil() {
+    const rows = shownAlerts.filter(a => !QUI || QUI.includes(a.pid)).sort((x, y) => (x.niv === "fort" ? 0 : 1) - (y.niv === "fort" ? 0 : 1) || String(x.date).localeCompare(String(y.date)));
+    let html = rows.length
+      ? `<ul>${rows.map(a => `<li class="${a.niv === "fort" ? "" : "minor"}">${a.niv === "fort" ? "<b>À corriger :</b> " : ""}${a.date && parse(a.date).getDay() % 6 && !SCREEN
+          ? `<button type="button" class="linkbtn" data-goto="${a.pid}|${a.date}">${esc(a.long)}</button>` : esc(a.long)}</li>`).join("")}</ul>`
+      : `<p class="ok">Aucun point de vigilance cette semaine.</p>`;
+    if (!HAS_TIMES) html += `<p class="hint">Pour contrôler aussi les chevauchements, le repos de 11 h et les pauses, activez les horaires : fichier <code>supabase/horaires.sql</code> à passer une fois dans Supabase.</p>`;
+    $("vigil-body").innerHTML = html;
   }
 
   const forShown = t => !QUI || t.people.some(x => QUI.includes(x));
@@ -728,6 +882,9 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     PEOPLE.forEach(p => { $("f-p-" + p.id).checked = (t.people || []).includes(p.id); });
     $("f-dur").value = String(t.dur || 1);
     $("f-date").value = t.date || "";
+    $("f-time-row").hidden = $("f-time-hint").hidden = !HAS_TIMES;
+    $("f-debut").value = t.debut || ""; $("f-fin").value = t.fin || "";
+    $("f-debut").removeAttribute("aria-invalid"); $("f-fin").removeAttribute("aria-invalid");
     $("f-del").hidden = !t.id;
     $("f-done-wrap").hidden = !t.id;
     $("f-dup").hidden = !t.id;
@@ -751,6 +908,9 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     document.querySelectorAll("#durs button").forEach(b => b.setAttribute("aria-pressed", Number(b.dataset.dur) === v));
   }
   $("f-dur").addEventListener("input", syncDurs);
+  // début et fin renseignés : la durée suit
+  const syncTimes = () => { const a = toMin($("f-debut").value), b = toMin($("f-fin").value); if (a !== null && b !== null && b > a) { $("f-dur").value = String((b - a) / 60); syncDurs(); } };
+  $("f-debut").addEventListener("input", syncTimes); $("f-fin").addEventListener("input", syncTimes);
   $("f-rep").addEventListener("change", () => {
     if ($("f-rep").value && !$("f-until").value) {
       const base = $("f-date").value ? parse($("f-date").value) : monday;
@@ -759,22 +919,23 @@ html.ecran .lday h3 { font-size: 1.4rem; }
   });
   $("f-dup").addEventListener("click", () => {
     const src = editing;
-    openForm({ title: src.title, client: src.client, people: src.people.slice(), date: src.date, dur: src.dur });
+    openForm({ title: src.title, client: src.client, people: src.people.slice(), date: src.date, dur: src.dur, debut: src.debut, fin: src.fin });
     $("ftitle").textContent = "Copie de la tâche";
   });
   $("f-del-series").addEventListener("click", () => {
     const t = editing;
     snap("Série « " + t.title + " » supprimée à partir du " + fmtShort(parse(t.date)) + ".");
     state.tasks = state.tasks.filter(x => !(x.series === t.series && x.date >= t.date));
-    save(); closeForm(); render();
+    closeForm(); after("Série « " + t.title + " » supprimée à partir du " + fmtShort(parse(t.date)) + ".");
   });
   $("durs").addEventListener("click", e => { const b = e.target.closest("[data-dur]"); if (b) { $("f-dur").value = b.dataset.dur; syncDurs(); } });
   function closeForm() { closeDialog(); editing = null; }
   $("f-cancel").addEventListener("click", closeForm);
   $("overlay").addEventListener("click", e => { if (e.target.id === "overlay") closeForm(); });
   $("f-del").addEventListener("click", () => {
-    snap("« " + editing.title + " » supprimée.");
-    state.tasks = state.tasks.filter(t => t.id !== editing.id); save(); closeForm(); render();
+    const title = editing.title;
+    snap("« " + title + " » supprimée.");
+    state.tasks = state.tasks.filter(t => t.id !== editing.id); closeForm(); after("« " + title + " » supprimée.");
   });
   $("form").addEventListener("submit", e => {
     e.preventDefault();
@@ -785,6 +946,15 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     let date = $("f-date").value || null;
     if (ppl.length && !date) date = iso(monday);
     const data = { title, client: $("f-client").value.trim(), people: ppl, date: ppl.length ? date : null, dur: Math.max(0.25, Number(String($("f-dur").value).replace(",", ".")) || 1) };
+    if (HAS_TIMES) {
+      const db = $("f-debut").value, fn = $("f-fin").value;
+      const bad = (msg, el) => { $("ferr").textContent = msg; $("ferr").hidden = false; el.setAttribute("aria-invalid", "true"); el.focus(); };
+      $("f-debut").removeAttribute("aria-invalid"); $("f-fin").removeAttribute("aria-invalid");
+      if (!!db !== !!fn) return bad("Indiquez l'heure de début et l'heure de fin, ou aucune des deux.", db ? $("f-fin") : $("f-debut"));
+      if (db && toMin(fn) <= toMin(db)) return bad("L'heure de fin doit être après l'heure de début (un créneau ne peut pas passer minuit).", $("f-fin"));
+      data.debut = db || null; data.fin = fn || null;
+      if (db) data.dur = (toMin(fn) - toMin(db)) / 60;
+    }
     if (editing.id) data.done = $("f-done").checked;
     if (editing.id) Object.assign(state.tasks.find(t => t.id === editing.id), data);
     else {
@@ -796,7 +966,9 @@ html.ecran .lday h3 { font-size: 1.4rem; }
       state.tasks.push(base);
       if (rep) seriesDates(data.date, rep, until).forEach(di => state.tasks.push(Object.assign({}, data, { id: uid(), date: di, people: ppl.slice(), series, rep })));
     }
-    save(); closeForm(); render();
+    const where = ppl.length ? " pour " + names(ppl) + ", " + dayLabel(data.date) : " dans la liste à prendre";
+    const wasEdit = !!editing.id;
+    closeForm(); after("« " + title + " » " + (wasEdit ? "modifiée." : "ajoutée" + where + "."));
   });
 
   $("newtask").addEventListener("click", () => openForm({ people: [state.me], date: defaultDay(), dur: 1 }));
@@ -805,15 +977,15 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     const title = $("qtitle").value.trim();
     if (!title) { $("qtitle").focus(); return; }
     state.tasks.push({ id: uid(), title, client: "", people: [], date: null, dur: 1 });
-    $("qtitle").value = ""; save(); render(); $("qtitle").focus();
+    $("qtitle").value = ""; after("« " + title + " » ajoutée à la liste à prendre."); $("qtitle").focus();
   });
   $("undo").addEventListener("click", () => {
     if (!undoData) return;
-    state.tasks = JSON.parse(undoData); undoData = null; $("undo").hidden = true; $("toastmsg").textContent = "Action annulée."; save(); render();
+    state.tasks = JSON.parse(undoData); undoData = null; $("undo").hidden = true; $("toastmsg").textContent = "Action annulée."; after("Dernière action annulée.");
   });
   document.addEventListener("keydown", e => {
     if ($("app").hidden || dlg || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) || (e.target.closest && e.target.closest(".task, .chk, .lrow"))) return;
+    if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) || (e.target.closest && e.target.closest(".task, .chk, .lrow, #grid"))) return;
     if (e.key === "ArrowLeft") $("prev").click();
     else if (e.key === "ArrowRight") $("next").click();
   });
@@ -833,26 +1005,128 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     if (e.target.classList && e.target.classList.contains("cell")) { openForm({ people: [e.target.dataset.person], date: e.target.dataset.date, dur: 1 }); return; }
     const tab = e.target.closest("[data-view]");
     if (tab && !SCREEN) { view = tab.dataset.view; try { localStorage.setItem(KEY + "-view", view); } catch (_) {} render(); return; }
+    const go = e.target.closest("[data-goto]");
+    if (go) { const [pid, di] = go.dataset.goto.split("|"); monday = mondayOf(parse(di)); const r = shownRows().findIndex(p => p.id === pid); render(); focusCell(r, (parse(di).getDay() + 6) % 7); return; }
     const chip = e.target.closest("[data-filter]");
     if (chip) { filter = chip.dataset.filter; render(); return; }
     const take = e.target.closest("[data-take]");
     if (take) {
       const t = state.tasks.find(x => x.id === take.dataset.take);
       snap("« " + t.title + " » prise par " + person(state.me).name + ".");
-      if (!t.people.includes(state.me)) t.people.push(state.me); t.date = defaultDay(); save(); render();
+      if (!t.people.includes(state.me)) t.people.push(state.me); t.date = defaultDay();
+      after("« " + t.title + " » prise par " + person(state.me).name + ", " + dayLabel(t.date) + ".");
     }
   });
   document.addEventListener("change", e => {
     const id = e.target.dataset && e.target.dataset.done;
     if (!id) return;
-    const t = state.tasks.find(x => x.id === id); t.done = e.target.checked; save(); render();
+    const t = state.tasks.find(x => x.id === id); t.done = e.target.checked; after("« " + t.title + " » " + (t.done ? "marquée faite." : "remise à faire."));
   });
   document.addEventListener("keydown", e => {
-    if ((e.key === "Enter" || e.key === " ") && e.target.classList && e.target.classList.contains("task") && !SCREEN) {
-      e.preventDefault();
-      const t = state.tasks.find(x => x.id === e.target.dataset.id); if (t) openForm(t);
-    }
+    if (kb || SCREEN || !e.target.classList || !e.target.classList.contains("task")) return;
+    if (e.key === "Enter") { e.preventDefault(); const t = state.tasks.find(x => x.id === e.target.dataset.id); if (t) openForm(t); }
+    else if (e.key === " ") { e.preventDefault(); grab(e.target); }
   });
+
+  // ---- navigation au clavier dans la grille : une tabulation pour entrer, puis les flèches de case en case ----
+  let cur = { r: 0, c: Math.min(4, (new Date().getDay() + 6) % 7) };
+  const cellAt = (r, c) => grid.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`);
+  const cellItems = cell => [...cell.querySelectorAll(".task, .add")];
+  function focusCell(r, c) {
+    const R = shownRows().length;
+    cur = { r: Math.max(0, Math.min(R - 1, r)), c: Math.max(0, Math.min(4, c)) };
+    grid.querySelectorAll('.cell[tabindex="0"]').forEach(x => { x.tabIndex = -1; });
+    const el = cellAt(cur.r, cur.c); if (el) { el.tabIndex = 0; el.focus(); }
+  }
+  grid.addEventListener("focusin", e => {
+    const cell = e.target.closest(".cell"); if (!cell) return;
+    cur = { r: +cell.dataset.r, c: +cell.dataset.c };
+    grid.querySelectorAll('.cell[tabindex="0"]').forEach(x => { if (x !== cell) x.tabIndex = -1; });
+    cell.tabIndex = 0;
+  });
+  function changeWeek(n) { monday = addDays(monday, 7 * n); render(); announce("Semaine du " + $("weeklabel").textContent); }
+  grid.addEventListener("keydown", e => {
+    if (SCREEN || kb || e.altKey || e.metaKey) return;
+    const cell = e.target.closest(".cell"); if (!cell) return;
+    const r = +cell.dataset.r, c = +cell.dataset.c, k = e.key;
+    if (e.target === cell) {
+      let nr = r, nc = c;
+      if (k === "ArrowLeft") nc--; else if (k === "ArrowRight") nc++;
+      else if (k === "ArrowUp") nr--; else if (k === "ArrowDown") nr++;
+      else if (k === "Home") { nc = 0; if (e.ctrlKey) nr = 0; }
+      else if (k === "End") { nc = 4; if (e.ctrlKey) nr = 99; }
+      else if (k === "PageUp" || k === "PageDown") { e.preventDefault(); changeWeek(k === "PageUp" ? -1 : 1); focusCell(r, c); return; }
+      else if (k === "Enter" || k === "F2") { e.preventDefault(); cellItems(cell)[0].focus(); return; }
+      else return;
+      e.preventDefault(); focusCell(nr, nc); return;
+    }
+    // à l'intérieur d'une case : tâches puis bouton « Ajouter »
+    const items = cellItems(cell), i = items.indexOf(e.target);
+    if (k === "Escape") { e.preventDefault(); focusCell(r, c); }
+    else if (k === "ArrowDown" && i >= 0) { e.preventDefault(); items[Math.min(items.length - 1, i + 1)].focus(); }
+    else if (k === "ArrowUp" && i >= 0) { e.preventDefault(); items[Math.max(0, i - 1)].focus(); }
+  });
+
+  // ---- déplacer une tâche sans souris : Espace saisit, flèches, Entrée pose, Échap annule ----
+  let kb = null; // { id, from, r, c, monday } ; r = nombre de lignes affichées → « Tâches à prendre »
+  function describeTarget() {
+    const rows = shownRows();
+    if (kb.r === rows.length) return "Tâches à prendre.";
+    const p = rows[kb.r], di = iso(addDays(monday, kb.c));
+    const sum = state.tasks.filter(t => t.date === di && t.people.includes(p.id) && t.id !== kb.id).reduce((s, t) => s + t.dur, 0);
+    return p.name + ", " + dayLabel(di) + " : " + durLabel(sum) + " déjà prévues sur " + DAY_H + " h.";
+  }
+  function showTarget() { render(); announce(describeTarget()); }
+  function grab(el) {
+    const t = state.tasks.find(x => x.id === el.dataset.id); if (!t) return;
+    const rows = shownRows(), from = el.dataset.from || null;
+    let r = rows.findIndex(p => p.id === (from || state.me)); if (r < 0) r = 0;
+    let c = from && t.date ? Math.round((parse(t.date) - monday) / 864e5) : cur.c;
+    c = Math.max(0, Math.min(4, c));
+    kb = { id: t.id, from, r, c, monday };
+    if (view !== "grid") { view = "grid"; }
+    render();
+    announce("« " + t.title + " » saisie. Flèches pour choisir la case, Entrée pour poser, Échap pour annuler. Case actuelle : " + describeTarget());
+  }
+  function endKb(drop) {
+    const k = kb; kb = null;
+    const t = state.tasks.find(x => x.id === k.id);
+    if (!drop || !t) { monday = k.monday; render(); const el = document.querySelector(`.task[data-id="${k.id}"][data-from="${k.from || ""}"]`); if (el) el.focus(); announce("Déplacement annulé."); return; }
+    const rows = shownRows();
+    const to = k.r < rows.length ? { person: rows[k.r].id, date: iso(addDays(monday, k.c)) } : null;
+    if ((to && k.from === to.person && t.date === to.date) || (!to && !k.from)) { render(); const el = document.querySelector(`.task[data-id="${t.id}"][data-from="${k.from || ""}"]`); if (el) el.focus(); announce("La tâche reste à sa place."); return; }
+    snap("« " + t.title + " » déplacée.");
+    moveTask(t, k.from, to);
+    after("« " + t.title + " » déplacée : " + (to ? person(to.person).name + ", " + dayLabel(to.date) + "." : "tâches à prendre."), () => {
+      const el = document.querySelector(`.task[data-id="${t.id}"][data-from="${to ? to.person : ""}"]`); if (el) el.focus();
+    });
+  }
+  document.addEventListener("keydown", e => {
+    if (!kb) return;
+    const k = e.key, R = shownRows().length;
+    e.preventDefault(); e.stopPropagation();
+    if (k === "Escape") return endKb(false);
+    if (k === "Enter" || k === " ") return endKb(true);
+    if (k === "Tab") { announce("Déplacement en cours : Entrée pour poser, Échap pour annuler."); return; }
+    if (k === "ArrowLeft") { if (kb.c > 0) kb.c--; else { monday = addDays(monday, -7); kb.c = 4; } }
+    else if (k === "ArrowRight") { if (kb.c < 4) kb.c++; else { monday = addDays(monday, 7); kb.c = 0; } }
+    else if (k === "ArrowUp") kb.r = Math.max(0, kb.r - 1);
+    else if (k === "ArrowDown") kb.r = Math.min(R, kb.r + 1);
+    else if (k === "PageUp") monday = addDays(monday, -7);
+    else if (k === "PageDown") monday = addDays(monday, 7);
+    else if (k === "Home") kb.c = 0;
+    else if (k === "End") kb.c = 4;
+    else return;
+    showTarget();
+  }, true);
+  document.addEventListener("pointerdown", () => { if (kb) endKb(false); }, true);
+
+  // une tâche commune garde ses autres participants : seule la personne déplacée change
+  function moveTask(t, from, to) {
+    const rest = t.people.filter(x => x !== from);
+    if (to) { t.people = from ? rest : []; if (!t.people.includes(to.person)) t.people.push(to.person); t.date = to.date; }
+    else { t.people = from ? rest : t.people; if (!t.people.length) t.date = null; }
+  }
 
   // ---- glisser-déposer (souris et tactile) ----
   let drag = null;
@@ -895,18 +1169,9 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     if (!d.moved) { if (!cancelled) openForm(t); return; }
     if (cancelled || !d.hot) return;
     snap("« " + t.title + " » déplacée.");
-    // une tâche commune garde ses autres participants : seule la personne déplacée change
-    const rest = t.people.filter(x => x !== d.from);
-    if (d.hot.dataset.drop === "cell") {
-      const to = d.hot.dataset.person;
-      t.people = d.from ? rest : [];
-      if (!t.people.includes(to)) t.people.push(to);
-      t.date = d.hot.dataset.date;
-    } else {
-      t.people = d.from ? rest : t.people;
-      if (!t.people.length) t.date = null;
-    }
-    save(); render();
+    const to = d.hot.dataset.drop === "cell" ? { person: d.hot.dataset.person, date: d.hot.dataset.date } : null;
+    moveTask(t, d.from, to);
+    after("« " + t.title + " » déplacée : " + (to ? person(to.person).name + ", " + dayLabel(to.date) + "." : "tâches à prendre."));
   }
   document.addEventListener("pointerup", e => endDrag(e, false));
   document.addEventListener("pointercancel", e => endDrag(e, true));
@@ -943,6 +1208,8 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     $("me-name").textContent = person(me.id) ? person(me.id).name : me.id;
     $("gate").hidden = true; $("app").hidden = false;
     if (!SCREEN) document.title = "Planning de l'équipe";
+    const probe = await sb.from("tasks").select("debut,fin").limit(1);
+    HAS_TIMES = !probe.error;
     await fetchTasks();
     let timer = null;
     channel = sb.channel("tasks-live")
@@ -951,7 +1218,7 @@ html.ecran .lday h3 { font-size: 1.4rem; }
       .subscribe(status => { if (status === "SUBSCRIBED" && lastOk) saving.then(fetchTasks); });
 
     // filet de sécurité : relecture toutes les 2 minutes, au retour du réseau et quand la page redevient visible
-    const refresh = () => { if (document.visibilityState === "visible" && !dlg && !drag) saving.then(fetchTasks); };
+    const refresh = () => { if (document.visibilityState === "visible" && !dlg && !drag && !kb) saving.then(fetchTasks); };
     setInterval(refresh, 120000);
     window.addEventListener("online", refresh);
     document.addEventListener("visibilitychange", refresh);

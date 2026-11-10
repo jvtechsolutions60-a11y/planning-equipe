@@ -91,9 +91,34 @@ Mise en place, une fois :
 2. Ouvrez l'adresse avec `?ecran=1` en plein écran (touche F11), ou réglez le navigateur pour l'ouvrir au démarrage en mode kiosque, par exemple `chromium --kiosk "https://…/planning-equipe/?ecran=1&qui=leo"`.
 3. Désactivez la mise en veille de l'écran dans les réglages de l'appareil.
 
+## Horaires et contrôles RH
+
+Chaque tâche peut avoir une heure de début et de fin (facultatives). Pour les activer, une seule fois : Supabase > **SQL Editor** > collez `supabase/horaires.sql` > **Run**, puis rechargez le planning.
+
+Le panneau « Points de vigilance » et les cases signalent :
+
+| Contrôle | Seuil (adulte) | Seuil (mineur) |
+|---|---|---|
+| Travail dans la journée | 10 h | 8 h |
+| Chevauchement de deux créneaux | dès 1 minute | dès 1 minute |
+| Repos entre deux journées | 11 h | 12 h |
+| Amplitude (début → fin de journée) | 13 h | 12 h |
+| Pause | 20 min après 6 h d'affilée | 30 min après 4 h 30 |
+| Semaine | 48 h | 35 h |
+| Heures au-delà du contrat | signalées (supplémentaires ou complémentaires) | idem |
+
+Les seuils viennent du Code du travail et sont à vérifier avec votre convention collective. On les change dans `index.html`, objet `LIMITS`. La base de chaque personne (35 h, ou moins pour un temps partiel) et l'indication « mineur » se règlent dans la liste `PEOPLE`.
+
+## Clavier
+
+- **Tab** amène dans le planning (une seule tabulation pour tout le tableau), puis les **flèches** vont de case en case ; **Origine** / **Fin** : début ou fin de ligne ; **Page préc.** / **Page suiv.** : semaine précédente ou suivante.
+- **Entrée** entre dans une case : flèches haut et bas d'une tâche à l'autre, **Entrée** ouvre la tâche, **Échap** revient à la case.
+- **Espace** sur une tâche la saisit : les flèches choisissent la personne et le jour (flèche bas après la dernière personne = tâches à prendre), **Entrée** pose, **Échap** annule.
+- Chaque action est annoncée aux lecteurs d'écran, avec les nouvelles anomalies éventuelles.
+
 ## Accessibilité
 
-La page suit le RGAA 4.1 (niveau AA) : contrastes vérifiés en thème clair et sombre, tout est utilisable au clavier (Entrée ou Espace sur une tâche pour l'ouvrir, et dans la fiche on choisit la personne et le jour sans glisser-déposer), fenêtres annoncées comme dialogues avec le focus gardé dedans, erreurs liées aux champs, planning lu comme un tableau par les lecteurs d'écran, zoom à 200 % sans défilement horizontal, pas de raccourci à une seule lettre. Vérifié avec axe-core.
+La page suit le RGAA 4.1 (niveau AA) : contrastes vérifiés en thème clair et sombre, tout est utilisable au clavier (Entrée ou Espace sur une tâche pour l'ouvrir, et dans la fiche on choisit la personne et le jour sans glisser-déposer), fenêtres annoncées comme dialogues avec le focus gardé dedans, erreurs liées aux champs, planning lu comme un tableau par les lecteurs d'écran, zoom à 200 % sans défilement horizontal, pas de raccourci à une seule lettre. Vérifié avec axe-core. Le mode « contraste élevé » du système (`prefers-contrast`) renforce bordures et textes secondaires.
 
 ## Ajouter ou retirer une personne
 
