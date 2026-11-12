@@ -319,6 +319,7 @@
     ["click", "pointerdown", "keydown", "dblclick"].forEach(type => window.addEventListener(type, e => {
       if (e.target.closest && e.target.closest("#gate")) return;
       if (type === "keydown" && e.key === "Escape") { location.href = location.pathname; return; }
+      if (voix && voix.event(e, type)) return;
       e.stopPropagation(); e.preventDefault();
     }, true));
     document.addEventListener("fullscreenchange", () => { if (fsByUs && !document.fullscreenElement) location.href = location.pathname; });
@@ -329,6 +330,120 @@
     document.addEventListener("visibilitychange", keepAwake);
     const tick = () => { $("clock").textContent = hhmm(new Date()); };
     tick(); setInterval(tick, 15000);
+    if (new URLSearchParams(location.search).has("voix") && !voix) voix = setupVoix();
+  }
+
+  // ---- ajout de tâches à la voix sur l'écran mural (?ecran=1&voix=1) ----
+  // Touche d'action (Espace, Entrée, Page suiv., flèche droite ou bas : bouton « suivant » d'une télécommande de présentation) :
+  // 1re pression = parler, 2e pression après lecture = valider. Touche d'annulation : Page préc., flèche gauche ou haut, Retour arrière.
+  // Rien n'est enregistré sans la seconde pression ; sans réponse, la proposition s'efface seule.
+  let voix = null;
+  function setupVoix() {
+    const ACT = [" ", "Enter", "PageDown", "ArrowRight", "ArrowDown", "MediaPlayPause"], CANCEL = ["PageUp", "ArrowLeft", "ArrowUp", "Backspace"];
+    const WAIT = 20, panel = $("voix"), SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let mode = "repos", rec = null, prop = null, timer = null, left = 0, heard = "";
+    const fh = s => +s.slice(0, 2) + " h" + (s.slice(3) === "00" ? "" : " " + s.slice(3));
+    const set = (cls, etat, dit, aide) => {
+      panel.className = "voix " + cls; $("voix-etat").textContent = etat; $("voix-dit").textContent = dit || ""; $("voix-aide").textContent = aide || "";
+    };
+    const repos = () => {
+      clearInterval(timer); mode = "repos"; prop = null; $("voix-tache").hidden = true;
+      set("repos", "🎤 Ajouter une tâche à la voix", "", SR ? "Bouton ou Espace, puis : « Julien jeudi 8 h 30 10 h 30 Dunkerque »" : "Indisponible : il faut Google Chrome.");
+    };
+    panel.hidden = false; repos();
+    function ecouter() {
+      if (!SR) { set("manque", "Ajout à la voix indisponible", "", "Ce navigateur ne fait pas la reconnaissance vocale. Utilisez Google Chrome sur l'écran."); return; }
+      if (!state.me) { set("manque", "Connexion nécessaire", "", "Connectez l'écran avec une adresse de l'équipe pour pouvoir ajouter des tâches."); return; }
+      mode = "ecoute"; heard = ""; let alts = [];
+      rec = new SR(); rec.lang = "fr-FR"; rec.interimResults = true; rec.maxAlternatives = 3; rec.continuous = false;
+      set("ecoute", "Je vous écoute…", "", "Dites qui, quel jour, l'heure et quoi faire. Annuler : touche retour.");
+      rec.onresult = ev => {
+        const r = ev.results[ev.results.length - 1];
+        heard = [...ev.results].map(x => x[0].transcript).join(" ").trim();
+        if (r.isFinal) alts = [...r].map(a => a.transcript.trim());
+        $("voix-dit").textContent = "« " + heard + " »";
+      };
+      rec.onerror = ev => {
+        if (mode !== "ecoute") return;
+        mode = "erreur"; clearInterval(timer);
+        const msg = ev.error === "not-allowed" || ev.error === "service-not-allowed" ? "Le micro est bloqué : autorisez-le pour ce site dans Chrome (icône à gauche de l'adresse)."
+          : ev.error === "no-speech" ? "Je n'ai rien entendu. Appuyez de nouveau pour réessayer, plus près du micro."
+          : ev.error === "audio-capture" ? "Aucun micro trouvé : vérifiez qu'il est bien branché."
+          : ev.error === "network" ? "Pas de connexion au service de reconnaissance vocale. Vérifiez internet."
+          : "La reconnaissance vocale a échoué (" + ev.error + "). Appuyez de nouveau pour réessayer.";
+        set("manque", "Rien n'a été ajouté", "", msg); setTimeout(() => { if (mode === "erreur") repos(); }, 8000);
+      };
+      rec.onend = () => {
+        rec = null;
+        if (mode !== "ecoute") return;
+        if (!heard) { set("manque", "Je n'ai rien entendu", "", "Appuyez de nouveau pour réessayer."); mode = "erreur"; setTimeout(() => { if (mode === "erreur") repos(); }, 6000); return; }
+        comprendre(alts.length ? alts : [heard]);
+      };
+      try { rec.start(); } catch (_) { repos(); }
+    }
+    function comprendre(alts) {
+      // parmi les transcriptions proposées, on garde celle qui laisse le moins de choses manquantes
+      const res = alts.map(t => window.PlanningVoix.parse(t, PEOPLE, new Date())).sort((a, b) => a.missing.length - b.missing.length)[0];
+      const box = $("voix-tache"); box.hidden = false;
+      const lignes = [["Pour", res.people.length ? names(res.people) : "?"], ["Jour", res.date ? dayLabel(res.date) : "?"],
+        ["Heure", res.debut && res.fin ? fh(res.debut) + " – " + fh(res.fin) : `<span class="devine">sans heure, ${esc(durLabel(res.dur))}${res.durDevinee ? " (durée par défaut)" : ""}</span>`],
+        ["Tâche", res.title ? esc(res.title) + (res.kind && res.kind !== "client" && res.kind !== "interne" ? " (" + esc(KINDS[res.kind].toLowerCase()) + ")" : "") : "?"]];
+      if (res.debut && res.durDevinee) lignes[2][1] += ` <span class="devine">(1 h par défaut)</span>`;
+      box.innerHTML = `<dl>${lignes.map(([k, v]) => `<dt>${k}</dt><dd>${k === "Heure" || k === "Tâche" ? v : esc(v)}</dd>`).join("")}</dl>`;
+      if (res.missing.length) {
+        mode = "erreur";
+        set("manque", "Il manque : " + res.missing.join(", "), "« " + res.heard + " »", "Rien n'a été ajouté. Appuyez de nouveau et redites toute la phrase.");
+        setTimeout(() => { if (mode === "erreur") repos(); }, 12000);
+        return;
+      }
+      const t = { id: uid(), title: res.title, client: "", people: res.people, date: res.date, dur: Math.round(res.dur * 4) / 4 };
+      if (HAS_TIMES && res.debut && res.fin) { t.debut = res.debut; t.fin = res.fin; }
+      if (HAS_LOT2) { t.kind = res.kind || "interne"; t.status = "planifiee"; t.notes = "Ajoutée à la voix sur l'écran : « " + res.heard + " »"; }
+      // contrôles RH sur la semaine de la tâche, avant de la proposer
+      const wk = [0, 1, 2, 3, 4, 5, 6].map(i => iso(addDays(mondayOf(parse(t.date)), i)));
+      const key = a => a.pid + a.date + a.long, before = new Set(verifier(wk).map(key));
+      state.tasks.push(norm(t));
+      const alerts = verifier(wk).filter(a => a.niv === "fort" && !before.has(key(a)) && t.people.includes(a.pid));
+      state.tasks.pop();
+      if (alerts.length) box.insertAdjacentHTML("beforeend", `<p class="alerte"><b>Attention :</b> ${alerts.map(a => esc(a.long)).join(" ")}</p>`);
+      prop = t; mode = "propose"; left = WAIT;
+      const tic = () => set("ok", "C'est bien ça ?", "« " + res.heard + " »", "Appuyez de nouveau pour ENREGISTRER. Touche retour pour annuler. Annulation automatique dans " + left + " s.");
+      tic(); clearInterval(timer);
+      timer = setInterval(() => { left--; if (left <= 0) { repos(); announce("Ajout à la voix annulé."); } else tic(); }, 1000);
+    }
+    function valider() {
+      clearInterval(timer);
+      const t = prop; prop = null; state.tasks.push(norm(t));
+      const where = names(t.people) + ", " + dayLabel(t.date);
+      after("« " + t.title + " » ajoutée pour " + where + ".");
+      mode = "fait"; $("voix-tache").hidden = true;
+      const other = mondayOf(parse(t.date)).getTime() !== monday.getTime();
+      set("ok", "✓ Ajoutée : " + t.title, where + (t.debut ? ", " + fh(t.debut) + " – " + fh(t.fin) : ""), other ? "Elle apparaîtra sur le planning de la semaine du " + fmtShort(mondayOf(parse(t.date))) + "." : "");
+      setTimeout(() => { if (mode === "fait") repos(); }, 6000);
+    }
+    function action() {
+      if (mode === "ecoute") { if (rec) rec.stop(); return; }
+      if (mode === "propose") { valider(); return; }
+      ecouter();
+    }
+    function annuler() {
+      if (mode === "repos") return;
+      const r = rec; mode = "repos"; if (r) r.abort(); repos(); announce("Ajout à la voix annulé.");
+    }
+    return {
+      // renvoie true si l'événement est pris par l'ajout à la voix (le reste de l'écran reste en lecture seule)
+      event(e, type) {
+        if (dlg || !$("gate").hidden) return false;
+        if (type === "keydown") {
+          if (e.repeat || e.ctrlKey || e.altKey || e.metaKey) return false;
+          if (ACT.includes(e.key)) { e.preventDefault(); e.stopPropagation(); action(); return true; }
+          if (CANCEL.includes(e.key)) { e.preventDefault(); e.stopPropagation(); annuler(); return true; }
+          return false;
+        }
+        if (type === "click" && e.target.closest && e.target.closest("#voix")) { e.preventDefault(); e.stopPropagation(); action(); return true; }
+        return false;
+      }
+    };
   }
   if (SCREEN) setupScreen();
 
@@ -367,6 +482,7 @@
     const u = new URLSearchParams({ ecran: "1" });
     if (ids.length && ids.length < PEOPLE.length) u.set("qui", ids.join(","));
     if ($("scr-form").querySelector("input[name=scr-vue]:checked").value === "list") u.set("vue", "liste");
+    if ($("scr-voix").checked) u.set("voix", "1");
     return { ids, query: "?" + u.toString().replace(/%2C/g, ",") };
   }
   const syncScreenUrl = () => { $("scr-url").value = location.origin + location.pathname + screenUrl().query; $("scr-copied").textContent = ""; };
