@@ -68,6 +68,8 @@ Le code est dans `scripts/recap-hebdo.mjs` et `.github/workflows/recap-hebdo.yml
 - **Tâche répétitive** : « Répéter » à la création, avec une date de fin.
 - **Dupliquer** : ouvrir la tâche, puis « Dupliquer ».
 - **Liste de la semaine** : onglet du même nom, avec les tâches à cocher une fois faites.
+- **Aujourd'hui** : onglet qui montre, pour chacun, la tâche en cours (ou la première à faire), la suivante, toute la journée à cocher et les échéances des 3 prochains jours. Sa propre carte est en premier.
+- **Prioritaire et échéance** : dans la fiche d'une tâche, « Prioritaire » la place en tête de sa journée (badge rouge) et « À rendre pour le » ajoute une échéance, qui passe en orange 3 jours avant et en rouge une fois dépassée (rappelée aussi dans « Points de vigilance »). Ces deux champs apparaissent une fois `supabase/priorites.sql` passé dans Supabase (SQL Editor > New query > coller > Run).
 - **Annuler** la dernière action : bouton dans le message qui s'affiche en bas.
 
 ## Écran mural
@@ -84,6 +86,7 @@ On peut aussi taper l'adresse directement : ajoutez `?ecran=1` à l'adresse : pl
 | `…/planning-equipe/?ecran=1&qui=leo` | une seule personne (`leo`, `julien` ou `justine`) |
 | `…/planning-equipe/?ecran=1&qui=leo,julien` | plusieurs personnes |
 | `…/planning-equipe/?ecran=1&qui=leo&vue=liste` | une seule personne, en liste par jour |
+| `…/planning-equipe/?ecran=1&qui=leo&vue=jour` | vue « Aujourd'hui » en grand : tâche en cours, la suivante, puis la journée |
 
 Mise en place, une fois :
 

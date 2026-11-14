@@ -31,6 +31,8 @@
   --warn: #a11f17;
   --warn-soft: #fde7e5;
   --ok: #156139;
+  --mid: #8a4600;           /* échéance proche, journée pleine : orange foncé, 4,5:1 minimum */
+  --mid-soft: #fdf0dc;
   --focus: #1d4ccc;
   --p-leo: #9c4700;
   --p-julien: #0c6650;
@@ -46,7 +48,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0e131a; --surface: #161c25; --cell: #121820; --line: #283040; --control: #8b95a8; --ink: #eef1f6; --muted: #aab3c4;
-    --accent: #8ea7ff; --accent-ink: #0a1022; --accent-soft: #1d2846; --warn: #ff9b91; --warn-soft: #3a1e1e; --ok: #82e0ae; --focus: #8ea7ff;
+    --accent: #8ea7ff; --accent-ink: #0a1022; --accent-soft: #1d2846; --warn: #ff9b91; --warn-soft: #3a1e1e; --ok: #82e0ae; --mid: #ffc27a; --mid-soft: #3a2c14; --focus: #8ea7ff;
     --p-leo: #ffb06a; --p-julien: #6fdcbc; --p-justine: #cfa6ff;
     --p-leo-soft: #3a2a1a; --p-julien-soft: #15342c; --p-justine-soft: #2d2341;
     color-scheme: dark;
@@ -54,7 +56,7 @@
 }
 :root[data-theme="dark"] {
   --bg: #0e131a; --surface: #161c25; --cell: #121820; --line: #283040; --control: #8b95a8; --ink: #eef1f6; --muted: #aab3c4;
-  --accent: #8ea7ff; --accent-ink: #0a1022; --accent-soft: #1d2846; --warn: #ff9b91; --warn-soft: #3a1e1e; --ok: #82e0ae; --focus: #8ea7ff;
+  --accent: #8ea7ff; --accent-ink: #0a1022; --accent-soft: #1d2846; --warn: #ff9b91; --warn-soft: #3a1e1e; --ok: #82e0ae; --mid: #ffc27a; --mid-soft: #3a2c14; --focus: #8ea7ff;
   --p-leo: #ffb06a; --p-julien: #6fdcbc; --p-justine: #cfa6ff;
   --p-leo-soft: #3a2a1a; --p-julien-soft: #15342c; --p-justine-soft: #2d2341;
   color-scheme: dark;
@@ -296,6 +298,53 @@ input.sr-only:focus-visible + *, .data-actions:has(input:focus-visible) label { 
 .vigil li .linkbtn { text-align: left; font-weight: 600; min-height: 1.5rem; padding: 0; }
 .vigil .ok { color: var(--ok); font-weight: 600; font-size: 0.875rem; margin: 0; }
 
+/* priorité et échéance */
+.task .tags { display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap; }
+.prio-tag { display: inline-block; padding: 0 0.4rem; border-radius: 0.3rem; background: var(--warn); color: var(--surface); font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.5; }
+.task.prio:not(.done) { box-shadow: inset 0 0 0 1px var(--warn); }
+.due { font-weight: 600; color: var(--ink); }
+.due.soon { color: var(--mid); }
+.due.late { color: var(--warn); }
+.lrow.prio:not(.done) .lt { border-left: 3px solid var(--warn); padding-left: 0.4rem; }
+.row2.la { align-items: end; }
+
+/* vue « Aujourd'hui » */
+.dayview { display: flex; flex-direction: column; gap: 0.9rem; }
+.dayview h2 { font-size: 1.3rem; }
+.daygrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 1rem; }
+.dcard { background: var(--surface); border: 1px solid var(--line); border-top: 0.35rem solid var(--pc); border-radius: 1rem; padding: 1rem; display: flex; flex-direction: column; gap: 0.7rem; min-width: 0; }
+.dcard h3 { display: flex; align-items: center; gap: 0.5rem; font-size: 1.3rem; flex-wrap: wrap; }
+.dload { margin-left: auto; font-family: var(--f-mono); font-size: 0.85rem; color: var(--muted); font-weight: 500; }
+.dfocus { border-radius: 0.6rem; padding: 0.6rem 0.8rem; background: var(--cell); border-left: 0.3rem solid var(--control); }
+.dfocus:not(.next) { background: var(--ps); border-left-color: var(--pc); }
+.dlab { margin: 0; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; color: var(--muted); }
+.dfocus.now .dlab { color: var(--ink); }
+.dtask { margin: 0.15rem 0 0; font-size: 1.25rem; font-weight: 700; overflow-wrap: anywhere; }
+.dmeta { margin: 0.15rem 0 0; font-size: 0.875rem; color: var(--muted); }
+.dmeta .h, .dt .h { font-family: var(--f-mono); font-weight: 600; color: var(--ink); }
+.dcard h4 { font-size: 0.875rem; margin: 0; color: var(--muted); font-family: var(--f-body); }
+.dall, .dsoon { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.dall li { font-size: 0.9375rem; border-left: 3px solid transparent; padding: 0.15rem 0 0.15rem 0.45rem; border-radius: 0.25rem; }
+.dall li.prio:not(.done) { border-left-color: var(--warn); }
+.dall li.now { background: var(--accent-soft); }
+.dall li.done .dt { text-decoration: line-through; color: var(--muted); }
+.dchk { display: flex; gap: 0.55rem; align-items: flex-start; cursor: pointer; min-height: 1.5rem; }
+.dchk input { margin-top: 0.2rem; width: 1.15rem; height: 1.15rem; flex: none; }
+.dt small { display: block; color: var(--muted); font-size: 0.8125rem; }
+.doff { margin: 0; font-weight: 700; color: var(--mid); }
+.dempty { margin: 0; color: var(--ok); font-weight: 600; }
+.dsoon li { font-size: 0.875rem; }
+.dsoon li.late { color: var(--warn); font-weight: 600; }
+.dsoon li.soon { color: var(--mid); font-weight: 600; }
+html.ecran .dayview h2 { font-size: 2rem; }
+html.ecran .dcard h3 { font-size: 1.9rem; }
+html.ecran .dtask { font-size: 2.1rem; }
+html.ecran .dmeta, html.ecran .dlab { font-size: 1.1rem; }
+html.ecran .dall li { font-size: 1.3rem; }
+html.ecran .dsoon li, html.ecran .dcard h4 { font-size: 1.1rem; }
+html.ecran .dload, html.ecran .dt small { font-size: 1.05rem; }
+html.ecran .dtask .prio-tag { font-size: 1rem; vertical-align: 0.3em; }
+
 /* contraste renforcé demandé par le système (prefers-contrast) */
 @media (prefers-contrast: more) {
   :root { --line: #5a6377; --control: #3a4252; --muted: #2a3140; }
@@ -414,6 +463,7 @@ html.ecran .lday h3 { font-size: 1.4rem; }
       <div class="toggle" role="group" aria-label="Affichage">
         <button type="button" id="tab-grid" data-view="grid" aria-pressed="true">Planning</button>
         <button type="button" id="tab-list" data-view="list" aria-pressed="false">Liste de la semaine</button>
+        <button type="button" id="tab-day" data-view="day" aria-pressed="false">Aujourd'hui</button>
       </div>
       <ul class="summary" id="summary" aria-label="Résumé de la semaine"></ul>
     </div>
@@ -422,6 +472,11 @@ html.ecran .lday h3 { font-size: 1.4rem; }
       <h2 id="list-title" class="sr-only">Liste de la semaine</h2>
       <div class="filters" id="filters" role="group" aria-label="Filtrer par personne"></div>
       <div id="listbody"></div>
+    </section>
+
+    <section class="dayview" id="dayview" hidden aria-labelledby="day-title">
+      <h2 id="day-title">Aujourd'hui</h2>
+      <div class="daygrid" id="daybody"></div>
     </section>
 
     <div class="main" id="mainview">
@@ -460,6 +515,7 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     <ul class="legend">
       <li>Durées en heures, sur une base de 7 h par jour et 35 h par semaine.</li>
       <li>Un jour encadré en rouge et marqué « Surchargé » dépasse 7 h de travail.</li>
+      <li>« Prioritaire » : tâche à faire en premier, placée en tête de la journée. Une échéance passe en orange 3 jours avant, en rouge une fois dépassée.</li>
       <li>Au clavier, dans le planning : flèches pour aller de case en case, <kbd>Entrée</kbd> pour entrer dans une case, puis <kbd>Entrée</kbd> sur une tâche pour l'ouvrir ou <kbd>Espace</kbd> pour la déplacer (flèches, puis <kbd>Entrée</kbd> pour poser, <kbd>Échap</kbd> pour annuler). <kbd>Page préc.</kbd> <kbd>Page suiv.</kbd> : semaine précédente ou suivante.</li>
     </ul>
   </main>
@@ -482,6 +538,7 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     <fieldset class="field"><legend>Présentation</legend><div class="checks">
       <label class="chk"><input type="radio" name="scr-vue" value="grid" checked>Planning de la semaine</label>
       <label class="chk"><input type="radio" name="scr-vue" value="list">Liste par jour</label>
+      <label class="chk"><input type="radio" name="scr-vue" value="day">Aujourd'hui (tâche en cours, la suivante)</label>
     </div></fieldset>
     <div class="field"><label class="chk"><input type="checkbox" id="scr-voix">Ajout de tâches à la voix (micro et Google Chrome nécessaires)</label>
       <span class="hint2">On appuie sur la barre d'espace ou le bouton d'une télécommande de présentation, on dit par exemple « Julien jeudi 8 h 30 10 h 30 Dunkerque », puis on appuie à nouveau pour valider. La phrase est transcrite par le service de reconnaissance vocale de Chrome (Google).</span></div>
@@ -513,6 +570,10 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     <label class="chk l2" hidden><input type="checkbox" id="f-distance">À distance (sans déplacement)</label>
     <div class="field"><label for="f-dur">Durée en heures</label><input type="number" id="f-dur" min="0.25" max="70" step="0.25" inputmode="decimal">
       <div class="durs" id="durs" role="group" aria-label="Durées rapides"><button type="button" data-dur="0.5">30 min</button><button type="button" data-dur="1">1 h</button><button type="button" data-dur="2">2 h</button><button type="button" data-dur="3.5">½ journée</button><button type="button" data-dur="7">1 journée</button></div></div>
+    <div class="row2 la" hidden>
+      <label class="chk"><input type="checkbox" id="f-prio">Prioritaire (à faire en premier)</label>
+      <div class="field"><label for="f-echeance">À rendre pour le (facultatif)</label><input type="date" id="f-echeance"></div>
+    </div>
     <fieldset class="field" aria-describedby="f-people-hint"><legend>Attribuée à</legend><div class="checks" id="f-people"></div><span class="hint2" id="f-people-hint">Cochez plusieurs personnes pour une tâche commune. Aucune case cochée : la tâche va dans la liste à prendre.</span></fieldset>
     <div class="field"><label for="f-date">Jour</label><input type="date" id="f-date" aria-describedby="f-date-hint"><span class="hint2" id="f-date-hint" hidden>Choisissez le nouveau jour, puis Enregistrer : l'intervention sera marquée « reportée ».</span></div>
     <div class="field l2" hidden><label for="f-findate">Jusqu'au (intervention sur plusieurs jours, facultatif)</label><input type="date" id="f-findate" aria-describedby="f-findate-hint"><span class="hint2" id="f-findate-hint">La durée indiquée s'entend par jour. Les samedis et dimanches sont sautés.</span></div>
@@ -556,8 +617,8 @@ html.ecran .lday h3 { font-size: 1.4rem; }
 <!-- client Supabase copié dans le dépôt : aucune dépendance à un serveur tiers au chargement -->
 <script src="vendor/supabase-js-2.117.3.js"></script>
 <script src="config.js"></script>
-<script src="voix.js?v=20261112"></script>
-<script src="app.js?v=20261112"></script>
+<script src="voix.js?v=20261114"></script>
+<script src="app.js?v=20261114"></script>
 
 </body>
 </html>
