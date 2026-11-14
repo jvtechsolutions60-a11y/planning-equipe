@@ -15,13 +15,15 @@ if (!fichiers.length) { console.log("Aucune tâche à ajouter."); process.exit(0
 if (!KEY) { console.error("Secret SUPABASE_SECRET_KEY manquant (Settings > Secrets and variables > Actions)."); process.exit(1); }
 
 const EQUIPE = ["leo", "julien", "justine"];
-const CHAMPS = ["title", "client", "dur", "date", "people", "debut", "fin", "notes", "kind", "lieu"];
-const FACULTATIFS = ["debut", "fin", "notes", "kind", "lieu"]; // retirés si la colonne n'existe pas encore en base
+const CHAMPS = ["title", "client", "dur", "date", "people", "debut", "fin", "notes", "kind", "lieu", "prio", "echeance"];
+const FACULTATIFS = ["debut", "fin", "notes", "kind", "lieu", "prio", "echeance"]; // retirés si la colonne n'existe pas encore en base
 
 function verifier(t, ou) {
   if (!t.title || typeof t.title !== "string") throw new Error(ou + " : titre manquant");
   if (t.date != null && !/^\d{4}-\d{2}-\d{2}$/.test(t.date)) throw new Error(ou + " : date au format AAAA-MM-JJ attendue");
   for (const h of ["debut", "fin"]) if (t[h] != null && !/^[0-2]\d:[0-5]\d$/.test(t[h])) throw new Error(ou + " : " + h + " au format HH:MM attendu");
+  if (t.echeance != null && !/^\d{4}-\d{2}-\d{2}$/.test(t.echeance)) throw new Error(ou + " : échéance au format AAAA-MM-JJ attendue");
+  if (t.prio != null && t.prio !== "haute") throw new Error(ou + " : prio vaut \"haute\" ou rien");
   for (const p of t.people || []) if (!EQUIPE.includes(p)) throw new Error(ou + " : personne inconnue « " + p + " »");
 }
 

@@ -60,9 +60,11 @@
   }
   const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
   // les colonnes debut et fin n'existent qu'une fois supabase/horaires.sql passé : on ne les envoie qu'à ce moment-là
-  let HAS_TIMES = false, HAS_HISTORY = false, HAS_LOT2 = false;
+  let HAS_TIMES = false, HAS_HISTORY = false, HAS_LOT2 = false, HAS_PRIO = false;
+  // priorité et échéance : colonnes ajoutées par supabase/priorites.sql
+  const PRIO_COLS = ["prio", "echeance"];
   const LOT2 = ["kind", "status", "notes", "lieu", "client_id", "fin_date", "reporte_de"];
-  const KINDS = { client: "Intervention client", interne: "Tâche interne", formation: "Formation", absence: "Absence", conge: "Congé" };
+  const KINDS = { client: "Intervention client", interne: "Tâche interne", formation: "Formation ou école", absence: "Absence", conge: "Congé" };
   const KIND_SHORT = { client: "", interne: "Interne", formation: "Formation", absence: "Absence", conge: "Congé" };
   const STATUS = { planifiee: "Planifiée", en_cours: "En cours", terminee: "Terminée", reportee: "Reportée", attente: "En attente (matériel ou client)", a_revoir: "À revoir (nouvelle visite)", annulee: "Annulée" };
   const STATUS_SHORT = { en_cours: "En cours", reportee: "Reportée", attente: "En attente", a_revoir: "À revoir", annulee: "Annulée" };
@@ -75,16 +77,44 @@
   const offWeek = t => !!t.date && !weekday(t.date) && !(t.fin_date && t.fin_date > t.date);
   const inBacklog = t => !t.people.length || !t.date || offWeek(t);
   const occursOn = (t, di) => !!t.date && (t.date === di || (!!t.fin_date && t.fin_date > t.date && di > t.date && di <= t.fin_date && weekday(di)));
+  // charge d'une journée : heures prévues et heures disponibles (journée du contrat moins congés et absences)
+  function dayLoad(p, di, exceptId) {
+    const ts = state.tasks.filter(t => occursOn(t, di) && t.people.includes(p.id) && t.status !== "annulee" && t.id !== exceptId);
+    const wd = (parse(di).getDay() + 6) % 7, share = wd < 5 && p.jours ? p.jours[wd] : 1, full = share * DAY_H;
+    const offs = ts.filter(isOff), offH = offs.reduce((s, t) => s + t.dur, 0);
+    const sum = ts.filter(counts).reduce((s, t) => s + t.dur, 0), cap = Math.max(0, full - offH);
+    // niveau de la jauge : libre, ok (moins de 85 %), plein (85 à 100 %), dépassé ; « off » = aucune heure disponible
+    const lvl = sum > cap ? "over" : cap === 0 ? "off" : sum === 0 ? "free" : sum >= cap * 0.85 ? "full" : "ok";
+    return { sum, cap, full, share, offs, offH, lvl };
+  }
+  const LVL_TXT = { free: "libre", ok: "ok", full: "presque plein", over: "dépassé", off: "pas disponible" };
   function dayRank(t, di) {
     if (!t.fin_date || t.fin_date <= t.date) return null;
     let n = 0, k = 0;
     for (let d = parse(t.date); iso(d) <= t.fin_date; d = addDays(d, 1)) { const x = iso(d); if (x === t.date || weekday(x)) { n++; if (x === di) k = n; } }
     return n > 1 ? k + "/" + n : null;
   }
+  // ordre dans une journée : les créneaux horaires dans l'ordre des heures, sinon les tâches prioritaires d'abord
+  const isPrio = t => t.prio === "haute";
+  function byOrder(a, b) {
+    const ta = toMin(a.debut), tb = toMin(b.debut);
+    if (ta !== null && tb !== null) return ta - tb;
+    return (isPrio(b) ? 1 : 0) - (isPrio(a) ? 1 : 0) || (ta ?? 9999) - (tb ?? 9999);
+  }
+  // échéance : « à rendre le … », puis de plus en plus visible à l'approche, « en retard » une fois passée
+  function dueInfo(t) {
+    if (!t.echeance || isDone(t) || t.status === "annulee") return null;
+    const n = Math.round((parse(t.echeance) - parse(iso(new Date()))) / 864e5), d = fmtShort(parse(t.echeance));
+    if (n < 0) return { cls: "late", txt: "En retard : à rendre le " + d, n };
+    if (n === 0) return { cls: "soon", txt: "À rendre aujourd'hui", n };
+    if (n === 1) return { cls: "soon", txt: "À rendre demain", n };
+    if (n <= 3) return { cls: "soon", txt: "À rendre dans " + n + " jours (" + d + ")", n };
+    return { cls: "", txt: "À rendre le " + d, n };
+  }
   let clients = [], modeles = [];
   const findClient = name => { const n = String(name || "").trim().toLowerCase(); return n ? clients.find(c => c.nom.toLowerCase() === n) : null; };
   const EMAIL_NAME = {};
-  const fields = () => ["id", "title", "client", "dur", "date", "people", "done", "series", "rep"].concat(HAS_TIMES ? ["debut", "fin"] : [], HAS_LOT2 ? LOT2 : []);
+  const fields = () => ["id", "title", "client", "dur", "date", "people", "done", "series", "rep"].concat(HAS_TIMES ? ["debut", "fin"] : [], HAS_LOT2 ? LOT2 : [], HAS_PRIO ? PRIO_COLS : []);
   // toute tâche (base, direct, import, copie locale) passe par norm() : seules des valeurs connues arrivent à l'affichage
   const own = (o, k) => typeof k === "string" && Object.prototype.hasOwnProperty.call(o, k);
   const okDate = v => typeof v === "string" && ISO_DATE.test(v) && iso(parse(v)) === v ? v : null;
@@ -94,7 +124,8 @@
     people: Array.isArray(r.people) ? [...new Set(r.people.filter(x => person(x)))] : [], done: !!r.done, series: r.series ? String(r.series) : null, rep: own(REP_LABEL, r.rep) ? r.rep : null,
     debut: okTime(r.debut), fin: okTime(r.fin), updated_at: r.updated_at || null,
     kind: own(KINDS, r.kind) ? r.kind : (r.client ? "client" : "interne"), status: own(STATUS, r.status) ? r.status : (r.done ? "terminee" : "planifiee"), notes: okText(r.notes),
-    lieu: r.lieu === "distance" ? "distance" : "site", client_id: r.client_id ? String(r.client_id) : null, fin_date: okDate(r.fin_date), reporte_de: okDate(r.reporte_de) });
+    lieu: r.lieu === "distance" ? "distance" : "site", client_id: r.client_id ? String(r.client_id) : null, fin_date: okDate(r.fin_date), reporte_de: okDate(r.reporte_de),
+    prio: r.prio === "haute" ? "haute" : null, echeance: okDate(r.echeance) });
   const row = t => { const o = {}; fields().forEach(f => { o[f] = f in t ? t[f] : null; }); o.client = o.client || ""; o.done = !!o.done; o.people = o.people || []; return o; };
 
   // ---- horaires et règles RH ----
@@ -122,7 +153,10 @@
         const mins = of(d).reduce((s, t) => s + workMin(t), 0);
         week += mins; if (mins) daysWorked++;
         const offs = all(d).filter(isOff), wd = (parse(d).getDay() + 6) % 7, share = wd < 5 && p.jours ? p.jours[wd] : 1;
-        if (offs.length && mins) add("fort", d, "Pendant : " + KIND_SHORT[offs[0].kind].toLowerCase(), "travail prévu pendant « " + offs[0].title + " » (" + KIND_SHORT[offs[0].kind].toLowerCase() + ").");
+        // une absence d'une journée entière interdit tout travail ; une absence partielle laisse le reste de la journée
+        const offMin = offs.reduce((s, t) => s + workMin(t), 0);
+        if (offs.length && mins && offMin >= share * DAY_H * 60) add("fort", d, "Pendant : " + KIND_SHORT[offs[0].kind].toLowerCase(), "travail prévu pendant « " + offs[0].title + " » (" + KIND_SHORT[offs[0].kind].toLowerCase() + ").");
+        else if (offs.length && mins > share * DAY_H * 60 - offMin) add("info", d, "Plus que le temps restant", durLabel(mins / 60) + " de travail prévues alors que « " + offs[0].title + " » laisse " + durLabel(Math.max(0, share * DAY_H * 60 - offMin) / 60) + ".");
         if (mins && share === 0) add("fort", d, "Jour non travaillé", "travail prévu un jour non travaillé.");
         else if (mins > share * DAY_H * 60 && share < 1) add("info", d, "Demi-journée", durLabel(mins / 60) + " prévues sur une demi-journée de travail.");
         if (mins > L.jour) add("fort", d, "Plus de " + L.jour / 60 + " h de travail", durLabel(mins / 60) + " de travail, au-delà du maximum de " + L.jour / 60 + " h par jour.");
@@ -234,7 +268,7 @@
     if (localDiff().length) save(); else { persist(); setSync(SCREEN ? "Mis à jour à " + hhmm(new Date()) : "À jour"); }
   }
   const FIELD_LABEL = { title: "titre", client: "client", dur: "durée", date: "jour", people: "personnes", done: "faite", debut: "début", fin: "fin", rep: "répétition", series: "série",
-    kind: "type", status: "statut", notes: "notes", lieu: "lieu", client_id: "fiche client", fin_date: "dernier jour", reporte_de: "report" };
+    kind: "type", status: "statut", notes: "notes", lieu: "lieu", client_id: "fiche client", fin_date: "dernier jour", reporte_de: "report", prio: "priorité", echeance: "échéance" };
 
   // envoie à la base uniquement les champs modifiés ; une tâche changée entre-temps par un collègue est relue puis fusionnée
   let saving = Promise.resolve(), retryTimer = null;
@@ -290,9 +324,11 @@
   const currentMonday = () => { const d = new Date(); return SCREEN && (d.getDay() === 0 || d.getDay() === 6) ? addDays(mondayOf(d), 7) : mondayOf(d); };
   let monday = currentMonday();
   let view = "grid", filter = "all";
-  if (SCREEN) view = params.get("vue") === "liste" ? "list" : "grid";
+  const VUE_PARAM = { liste: "list", jour: "day", charge: "charge" }, PARAM_VUE = { list: "liste", day: "jour", charge: "charge" };
+  if (SCREEN) view = VUE_PARAM[params.get("vue")] || "grid";
   else {
     try { view = localStorage.getItem(KEY + "-view") || ""; } catch (e) { view = ""; }
+    if (!["grid", "list", "day", "charge"].includes(view)) view = "";
     if (!view) view = window.matchMedia && matchMedia("(max-width: 700px)").matches ? "list" : "grid";
   }
 
@@ -409,11 +445,11 @@
       const parts = [], html = [];
       ids.forEach(pid => {
         const list = state.tasks.filter(t => occursOn(t, di) && t.people.includes(pid) && t.status !== "annulee")
-          .sort((a, b) => (a.debut || "99").localeCompare(b.debut || "99"));
+          .sort(byOrder);
         const rest = list.filter(t => !isDone(t)), nm = person(pid).name;
-        html.push(`<dt>${esc(nm)}</dt><dd>${list.length ? list.map(t => (isDone(t) ? "✓ " : "") + (hasTime(t) ? fh(t.debut) + " " : "") + esc(t.title)).join(" · ") : "rien de prévu"}</dd>`);
+        html.push(`<dt>${esc(nm)}</dt><dd>${list.length ? list.map(t => (isDone(t) ? "✓ " : "") + (isPrio(t) && !isDone(t) ? "<b>Prioritaire :</b> " : "") + (hasTime(t) ? fh(t.debut) + " " : "") + esc(t.title)).join(" · ") : "rien de prévu"}</dd>`);
         if (!rest.length) parts.push(nm + " : " + (list.length ? "tout est fait." : "rien de prévu."));
-        else parts.push(nm + " : " + rest.map(t => (hasTime(t) ? "à " + fh(t.debut) + ", " : "") + t.title).join(". Puis ") + ".");
+        else parts.push(nm + " : " + rest.map(t => (isPrio(t) ? "en priorité, " : "") + (hasTime(t) ? "à " + fh(t.debut) + ", " : "") + t.title + (dueInfo(t) && dueInfo(t).n <= 1 ? ", " + dueInfo(t).txt.toLowerCase() : "")).join(". Puis ") + ".");
       });
       box.innerHTML = `<dl>${html.join("")}</dl>`;
       const txt = (quand(di) === "aujourd'hui" ? "Aujourd'hui. " : quand(di).charAt(0).toUpperCase() + quand(di).slice(1) + ". ") + parts.join(" ");
@@ -554,7 +590,8 @@
     const ids = [...$("scr-people").querySelectorAll("input:checked")].map(i => i.value);
     const u = new URLSearchParams({ ecran: "1" });
     if (ids.length && ids.length < PEOPLE.length) u.set("qui", ids.join(","));
-    if ($("scr-form").querySelector("input[name=scr-vue]:checked").value === "list") u.set("vue", "liste");
+    const v = $("scr-form").querySelector("input[name=scr-vue]:checked").value;
+    if (PARAM_VUE[v]) u.set("vue", PARAM_VUE[v]);
     if ($("scr-voix").checked) u.set("voix", "1");
     return { ids, query: "?" + u.toString().replace(/%2C/g, ",") };
   }
@@ -596,12 +633,13 @@
     // dans la grille, une seule tabulation pour tout le tableau : les tâches s'atteignent avec les flèches (tabindex -1)
     const act = SCREEN ? "" : ` role="button" tabindex="${row ? -1 : 0}" aria-haspopup="dialog" aria-describedby="task-help"`;
     const grabbed = kb && kb.id === t.id && (kb.from || "") === (row || "");
-    const rank = di ? dayRank(t, di) : null;
-    return `<div class="task${t.people.length > 1 ? " shared" : ""}${isDone(t) ? " done" : ""}${grabbed ? " grabbed" : ""} k-${t.kind} st-${t.status}" data-id="${esc(t.id)}" data-from="${row || ""}"${act} style="--pc:${p ? p.color : "var(--control)"}">
-      ${KIND_SHORT[t.kind] ? `<span class="kind">${KIND_SHORT[t.kind]}</span>` : ""}
+    const rank = di ? dayRank(t, di) : null, due = dueInfo(t);
+    return `<div class="task${t.people.length > 1 ? " shared" : ""}${isDone(t) ? " done" : ""}${grabbed ? " grabbed" : ""}${isPrio(t) ? " prio" : ""} k-${t.kind} st-${t.status}" data-id="${esc(t.id)}" data-from="${row || ""}"${act} style="--pc:${p ? p.color : "var(--control)"}">
+      ${KIND_SHORT[t.kind] || isPrio(t) ? `<span class="tags">${isPrio(t) ? `<span class="prio-tag">Prioritaire</span>` : ""}${KIND_SHORT[t.kind] ? `<span class="kind">${KIND_SHORT[t.kind]}</span>` : ""}</span>` : ""}
       <span class="t">${isDone(t) ? `<span class="sr-only">Faite : </span>` : ""}${STATUS_SHORT[t.status] ? `<span class="sr-only">${STATUS_SHORT[t.status]} : </span>` : ""}${esc(t.title)}</span>
       ${t.people.length > 1 ? `<span class="with">Commune${row ? " avec " + others.join(", ") : " : " + t.people.map(x => person(x).name).join(", ")}</span>` : ""}
       <span class="m">${t.client ? `<span>${esc(t.client)}</span>` : ""}${hasTime(t) ? `<span class="h">${esc(t.debut)}–${esc(t.fin)}</span>` : ""}<span class="d">${durLabel(t.dur)}</span>${t.series ? `<span class="rep"><span aria-hidden="true">↻ </span>${REP_LABEL[t.rep] || "répétée"}</span>` : ""}${rank ? `<span>jour ${rank}</span>` : ""}${t.lieu === "distance" ? `<span>à distance</span>` : ""}${t.notes ? `<span class="note-ico" title="Notes internes"><span aria-hidden="true">✎</span><span class="sr-only">avec notes</span></span>` : ""}</span>
+      ${due ? `<span class="m"><span class="due ${due.cls}">${esc(due.txt)}</span></span>` : ""}
       ${!row && offWeek(t) ? `<span class="m"><span class="st">Prévue ${JOURS[parse(t.date).getDay()]} ${fmtShort(parse(t.date))} : à replacer</span></span>` : ""}
       ${STATUS_SHORT[t.status] ? `<span class="m"><span class="st" aria-hidden="true">${STATUS_SHORT[t.status]}</span>${t.reporte_de ? `<span>du ${fmtShort(parse(t.reporte_de))}</span>` : ""}</span>` : (t.reporte_de ? `<span class="m"><span>reportée du ${fmtShort(parse(t.reporte_de))}</span></span>` : "")}
     </div>`;
@@ -641,28 +679,31 @@
     grid.style.setProperty("--rows", rows.length);
     rows.forEach((p, r) => {
       const mine = state.tasks.filter(t => t.people.includes(p.id) && weekIsos.some(di => occursOn(t, di)));
-      const total = weekIsos.reduce((s, di) => s + mine.filter(t => occursOn(t, di) && counts(t)).reduce((a, t) => a + t.dur, 0), 0);
-      const pct = Math.min(100, total / p.base * 100);
+      const loads = weekIsos.map(di => dayLoad(p, di));
+      const total = loads.reduce((s, l) => s + l.sum, 0), capW = loads.reduce((s, l) => s + l.cap, 0), offW = loads.reduce((s, l) => s + Math.min(l.full, l.offH), 0);
+      const pct = capW ? Math.min(100, total / capW * 100) : (total ? 100 : 0);
       const isMe = p.id === state.me && !SCREEN;
       const extra = total - p.base;
       html += `<div class="row" role="row" aria-rowindex="${r + 2}"><div class="person${isMe ? " is-me" : ""}" role="rowheader" aria-colindex="1" style="--pc:${p.color};--ps:${p.soft}">
         <span class="pname"><span class="dot" aria-hidden="true"></span>${p.name}${isMe ? ` <span class="you">(vous)</span>` : ""}</span>
-        <span class="load${extra > 0 ? " over" : ""}">${durLabel(total)} / ${p.base} h</span>
+        <span class="load${extra > 0 || total > capW ? " over" : ""}">${durLabel(total)} / ${durLabel(capW)}</span>
+        ${offW ? `<span class="offw">${durLabel(offW)} d'absence ou de congé</span>` : ""}
         ${extra > 0 ? `<span class="sup">+ ${durLabel(extra)} ${p.base >= 35 ? "supplémentaires" : "complémentaires"}</span>` : ""}
-        <span class="bar${extra > 0 ? " over" : ""}" aria-hidden="true"><i style="width:${pct}%"></i></span>
+        <span class="bar${extra > 0 || total > capW ? " over" : ""}" aria-hidden="true"><i style="width:${pct}%"></i></span>
       </div>`;
       weekIsos.forEach((di, c) => {
-        const ts = mine.filter(t => occursOn(t, di)).sort((x, y) => (toMin(x.debut) ?? 9999) - (toMin(y.debut) ?? 9999));
-        const sum = ts.filter(counts).reduce((s, t) => s + t.dur, 0);
-        const share = p.jours ? p.jours[c] : 1, cap = DAY_H * share;
+        const ts = mine.filter(t => occursOn(t, di)).sort(byOrder);
+        const L = loads[c], sum = L.sum, share = L.share, cap = L.cap;
         const al = shownAlerts.filter(x => x.pid === p.id && x.date === di);
         const strong = al.some(x => x.niv === "fort");
         const target = kb && kb.r === r && kb.c === c;
         const active = G && r === cur.r && c === cur.c;
         html += `<div class="cell${sum > cap && share > 0 ? " over" : ""}${share === 0 ? " nowork" : ""}${strong ? " alert" : ""}${di === todayIso ? " today" : ""}${target ? " kb-target" : ""}" role="${G ? "gridcell" : "cell"}" aria-colindex="${c + 2}"${G ? ` tabindex="${active ? 0 : -1}"` : ""} data-r="${r}" data-c="${c}" data-drop="cell" data-person="${p.id}" data-date="${di}">
           ${share < 1 ? `<span class="daynote">${share === 0 ? "Non travaillé" : "Demi-journée"}</span>` : ""}
+          ${share > 0 && L.offs.length && cap === 0 ? `<span class="daynote">${esc(KIND_SHORT[L.offs[0].kind])} toute la journée</span>` : ""}
           ${ts.map(t => taskHTML(t, p.id, di)).join("")}
-          ${sum ? `<span class="flag${sum > cap ? " over" : ""}">${sum > cap ? "Surchargé : " : ""}${durLabel(sum)} / ${durLabel(cap)}</span>` : ""}
+          ${sum || (L.offs.length && cap > 0) ? `<span class="flag lvl-${L.lvl}">${sum > cap ? "Surchargé : " : ""}${durLabel(sum)} / ${durLabel(cap)}${cap > sum ? ` · libre ${durLabel(cap - sum)}` : ""}</span>
+          <span class="dbar lvl-${L.lvl}" aria-hidden="true"><i style="width:${cap ? Math.min(100, sum / cap * 100) : 100}%"></i></span>` : ""}
           ${al.length ? `<ul class="alerts">${al.map(x => `<li class="${x.niv === "fort" ? "" : "minor"}"><span aria-hidden="true">⚠ </span>${esc(x.court)}</li>`).join("")}</ul>` : ""}
           ${SCREEN ? "" : `<button type="button" class="add" tabindex="-1" data-person="${p.id}" data-date="${di}" aria-haspopup="dialog" aria-label="Ajouter une tâche pour ${p.name}, ${DAYS[c].toLowerCase()} ${fmtShort(days[c])}"><span aria-hidden="true">+</span> Ajouter</button>`}
         </div>`;
@@ -673,16 +714,19 @@
     blist.classList.toggle("kb-target", !!(kb && kb.r === rows.length));
     renderVigil();
 
-    const back = state.tasks.filter(inBacklog);
+    const back = state.tasks.filter(inBacklog).sort((a, b) => (isPrio(b) ? 1 : 0) - (isPrio(a) ? 1 : 0) || (a.echeance || "9999").localeCompare(b.echeance || "9999"));
     blist.innerHTML = back.length
       ? back.map(t => `<li class="btask">${taskHTML(t, null, null)}<button type="button" class="take" data-take="${esc(t.id)}" aria-label="Prendre « ${esc(t.title)} »">Prendre</button></li>`).join("")
       : `<li class="empty">Rien à prendre pour l'instant.</li>`;
     renderSummary(weekIsos);
     renderList(days);
+    renderDay();
+    renderCharge();
     $("mainview").hidden = view !== "grid";
     $("listview").hidden = view !== "list";
-    $("tab-grid").setAttribute("aria-pressed", view === "grid");
-    $("tab-list").setAttribute("aria-pressed", view === "list");
+    $("dayview").hidden = view !== "day";
+    $("chargeview").hidden = view !== "charge";
+    ["grid", "list", "day", "charge"].forEach(v => $("tab-" + v).setAttribute("aria-pressed", view === v));
 
     // retour du focus au même endroit (même tâche, même bouton ou même case)
     if (kb) {
@@ -707,11 +751,13 @@
   }
 
   function renderVigil() {
+    const late = state.tasks.filter(t => forShown(t) && dueInfo(t) && dueInfo(t).n < 0).sort((a, b) => a.echeance.localeCompare(b.echeance));
     const rows = shownAlerts.filter(a => !QUI || QUI.includes(a.pid)).sort((x, y) => (x.niv === "fort" ? 0 : 1) - (y.niv === "fort" ? 0 : 1) || String(x.date).localeCompare(String(y.date)));
+    const lateHtml = late.map(t => `<li><b>Échéance dépassée :</b> « ${esc(t.title)} » était à rendre le ${fmtShort(parse(t.echeance))}${t.people.length ? " (" + esc(names(t.people)) + ")" : " (à prendre)"}.</li>`).join("");
     let html = rows.length
-      ? `<ul>${rows.map(a => `<li class="${a.niv === "fort" ? "" : "minor"}">${a.niv === "fort" ? "<b>À corriger :</b> " : ""}${a.date && parse(a.date).getDay() % 6 && !SCREEN
+      ? `<ul>${lateHtml}${rows.map(a => `<li class="${a.niv === "fort" ? "" : "minor"}">${a.niv === "fort" ? "<b>À corriger :</b> " : ""}${a.date && parse(a.date).getDay() % 6 && !SCREEN
           ? `<button type="button" class="linkbtn" data-goto="${a.pid}|${a.date}">${esc(a.long)}</button>` : esc(a.long)}</li>`).join("")}</ul>`
-      : `<p class="ok">Aucun point de vigilance cette semaine.</p>`;
+      : lateHtml ? `<ul>${lateHtml}</ul>` : `<p class="ok">Aucun point de vigilance cette semaine.</p>`;
     if (!HAS_TIMES) html += `<p class="hint">Pour contrôler aussi les chevauchements, le repos de 11 h et les pauses, activez les horaires : fichier <code>supabase/horaires.sql</code> à passer une fois dans Supabase.</p>`;
     $("vigil-body").innerHTML = html;
   }
@@ -733,13 +779,14 @@
     $("listbody").innerHTML = days.map((d, i) => {
       const di = iso(d);
       const today = di === todayIso;
-      const ts = state.tasks.filter(t => occursOn(t, di) && t.people.length && forShown(t) && (filter === "all" || t.people.includes(filter)));
-      const rows = ts.map(t => `<li><label class="lrow${isDone(t) ? " done" : ""}">
+      const ts = state.tasks.filter(t => occursOn(t, di) && t.people.length && forShown(t) && (filter === "all" || t.people.includes(filter))).sort(byOrder);
+      const rows = ts.map(t => { const meta = [isPrio(t) && !isDone(t) ? "Prioritaire" : "", KIND_SHORT[t.kind], STATUS_SHORT[t.status], t.client, t.lieu === "distance" ? "à distance" : "", dayRank(t, di) ? "jour " + dayRank(t, di) : "", dueInfo(t) ? dueInfo(t).txt : ""].filter(Boolean);
+        return `<li><label class="lrow${isDone(t) ? " done" : ""}${isPrio(t) ? " prio" : ""}">
           <input type="checkbox" data-done="${esc(t.id)}" aria-label="${esc("Faite : " + t.title)}"${isDone(t) ? " checked" : ""}${isOff(t) ? " disabled" : ""}>
-          <span class="lt">${esc(t.title)}${isDone(t) ? `<span class="sr-only"> (faite)</span>` : ""}${[KIND_SHORT[t.kind], STATUS_SHORT[t.status], t.client, t.lieu === "distance" ? "à distance" : "", dayRank(t, di) ? "jour " + dayRank(t, di) : ""].filter(Boolean).length ? `<small>${esc([KIND_SHORT[t.kind], STATUS_SHORT[t.status], t.client, t.lieu === "distance" ? "à distance" : "", dayRank(t, di) ? "jour " + dayRank(t, di) : ""].filter(Boolean).join(" · "))}</small>` : ""}</span>
+          <span class="lt">${esc(t.title)}${isDone(t) ? `<span class="sr-only"> (faite)</span>` : ""}${meta.length ? `<small>${esc(meta.join(" · "))}</small>` : ""}</span>
           <span class="lp">${t.people.map(x => `<span class="pill" style="--pc:${person(x).color};--ps:${person(x).soft}">${person(x).name}</span>`).join("")}</span>
           <span class="lh">${durLabel(t.dur)}</span>
-        </label></li>`).join("");
+        </label></li>`; }).join("");
       const left = ts.filter(t => !isDone(t) && counts(t)).length;
       return `<section class="lday${today ? " today" : ""}" aria-labelledby="ld-${di}">
         <h3 id="ld-${di}">${DAYS[i]}${today ? `<span class="badge">aujourd'hui</span>` : ""} <span class="date">${fmtShort(d)}</span><span class="count">${ts.length ? left + " à faire sur " + ts.length : "rien de prévu"}</span></h3>
@@ -747,6 +794,63 @@
       </section>`;
     }).join("");
   }
+
+  // ---- vue « Aujourd'hui » : par personne, ce qu'il faut faire maintenant, ensuite, puis toute la journée ----
+  function renderDay() {
+    const now = new Date(), di = weekday(iso(now)) ? iso(now) : iso(addDays(mondayOf(now), 7));
+    const isToday = di === iso(now), nowMin = now.getHours() * 60 + now.getMinutes();
+    const rows = SCREEN ? shownRows() : [...PEOPLE].sort((a, b) => (b.id === state.me) - (a.id === state.me));
+    $("day-title").textContent = (isToday ? "Aujourd'hui, " : "Prochain jour de travail : ") + dayLabel(di);
+    const timeTxt = t => hasTime(t) ? fh2(t.debut) + " – " + fh2(t.fin) : durLabel(t.dur);
+    const meta = t => [isPrio(t) && !isDone(t) ? "Prioritaire" : "", t.client, t.lieu === "distance" ? "à distance" : "", STATUS_SHORT[t.status], dueInfo(t) ? dueInfo(t).txt : ""].filter(Boolean).join(" · ");
+    const big = (lab, t, cls) => `<div class="dfocus ${cls}"><p class="dlab">${lab}</p><p class="dtask">${isPrio(t) ? `<span class="prio-tag">Prioritaire</span> ` : ""}${esc(t.title)}</p><p class="dmeta"><span class="h">${esc(timeTxt(t))}</span>${[t.client, t.lieu === "distance" ? "à distance" : "", dueInfo(t) ? dueInfo(t).txt : ""].filter(Boolean).map(x => " · " + esc(x)).join("")}</p></div>`;
+    $("daybody").innerHTML = rows.map(p => {
+      const list = state.tasks.filter(t => occursOn(t, di) && t.people.includes(p.id) && t.status !== "annulee").sort(byOrder);
+      const offs = list.filter(isOff), todo = list.filter(t => !isDone(t) && !isOff(t));
+      const passed = t => isToday && hasTime(t) && toMin(t.fin) <= nowMin;
+      const cur = isToday ? todo.find(t => hasTime(t) && toMin(t.debut) <= nowMin && nowMin < toMin(t.fin)) : null;
+      const pending = todo.filter(t => !passed(t)), first = cur || pending[0] || null, next = pending.find(t => t !== first) || null;
+      const sum = list.filter(counts).reduce((s, t) => s + t.dur, 0);
+      const soon = state.tasks.filter(t => t.people.includes(p.id) && !occursOn(t, di) && dueInfo(t) && dueInfo(t).n <= 3).sort((a, b) => a.echeance.localeCompare(b.echeance));
+      const items = list.map(t => {
+        const m = meta(t), late = passed(t) && !isDone(t) && !isOff(t);
+        const body = `<span class="dt"><span class="h">${esc(timeTxt(t))}</span> ${esc(t.title)}${isDone(t) ? `<span class="sr-only"> (faite)</span>` : ""}${m || late ? `<small>${esc([m, late ? "pas encore cochée" : ""].filter(Boolean).join(" · "))}</small>` : ""}</span>`;
+        return `<li class="${isDone(t) ? "done" : ""}${isPrio(t) ? " prio" : ""}${t === cur ? " now" : ""}">${SCREEN || isOff(t) ? body
+          : `<label class="dchk"><input type="checkbox" data-done="${esc(t.id)}" aria-label="${esc("Faite : " + t.title)}"${isDone(t) ? " checked" : ""}>${body}</label>`}</li>`;
+      }).join("");
+      return `<section class="dcard" style="--pc:${p.color};--ps:${p.soft}" aria-labelledby="dc-${p.id}">
+        <h3 id="dc-${p.id}"><span class="dot" aria-hidden="true"></span>${p.name}${p.id === state.me && !SCREEN ? ` <span class="you">(vous)</span>` : ""}<span class="dload">${durLabel(sum)} prévues</span></h3>
+        ${offs.length ? `<p class="doff">${esc(KIND_SHORT[offs[0].kind])} : ${esc(offs[0].title)}</p>` : ""}
+        ${first ? big(first === cur ? "Maintenant" : isToday ? "À faire en premier" : "Pour commencer", first, first === cur ? "now" : "") : list.length ? `<p class="dempty">Tout est fait. Bravo !</p>` : `<p class="dempty">Rien de prévu.</p>`}
+        ${next ? big("Ensuite", next, "next") : ""}
+        ${list.length ? `<h4>Toute la journée</h4><ul class="dall">${items}</ul>` : ""}
+        ${soon.length ? `<h4>À rendre bientôt</h4><ul class="dsoon">${soon.map(t => `<li class="${dueInfo(t).cls}">${esc(t.title)} : ${esc(dueInfo(t).txt.toLowerCase())}</li>`).join("")}</ul>` : ""}
+      </section>`;
+    }).join("");
+  }
+  // ---- plan de charge sur 4 semaines : heures prévues sur heures disponibles, par personne et par semaine ----
+  const CHARGE_WEEKS = 4;
+  function renderCharge() {
+    const weeks = [...Array(CHARGE_WEEKS)].map((_, k) => addDays(monday, 7 * k)), rows = shownRows();
+    const daysOf = m => [0, 1, 2, 3, 4].map(i => iso(addDays(m, i)));
+    const pctTxt = (sum, cap) => cap ? Math.round(sum / cap * 100) + " %" : sum ? "aucune heure disponible" : "absent";
+    const lvlOf = (sum, cap) => sum > cap ? "over" : cap === 0 ? "off" : sum === 0 ? "free" : sum >= cap * 0.85 ? "full" : "ok";
+    const tot = weeks.map(() => ({ sum: 0, cap: 0 }));
+    const body = rows.map(p => `<tr><th scope="row"><span class="pname" style="--pc:${p.color}"><span class="dot" aria-hidden="true"></span>${p.name}</span></th>${weeks.map((m, k) => {
+      const L = daysOf(m).map(di => dayLoad(p, di)), sum = L.reduce((s, l) => s + l.sum, 0), cap = L.reduce((s, l) => s + l.cap, 0), lvl = lvlOf(sum, cap);
+      tot[k].sum += sum; tot[k].cap += cap;
+      const detail = L.map((l, i) => DAYS[i].toLowerCase() + " " + durLabel(l.sum) + " sur " + durLabel(l.cap) + " (" + LVL_TXT[l.lvl] + ")").join(", ");
+      return `<td class="lvl-${lvl}"><span class="cv">${durLabel(sum)} / ${durLabel(cap)}</span><span class="cp">${pctTxt(sum, cap)}${cap > sum ? ` · libre ${durLabel(cap - sum)}` : ""}</span>
+        <span class="dbar lvl-${lvl}" aria-hidden="true"><i style="width:${cap ? Math.min(100, sum / cap * 100) : 100}%"></i></span>
+        <span class="cdays" aria-hidden="true">${L.map((l, i) => `<i class="lvl-${l.lvl}" title="${DAYS[i]} : ${durLabel(l.sum)} / ${durLabel(l.cap)}"></i>`).join("")}</span>
+        <span class="sr-only">Par jour : ${detail}.</span></td>`;
+    }).join("")}</tr>`).join("");
+    const head = weeks.map(m => { const f = addDays(m, 4); return `<th scope="col">${SCREEN ? "" : `<button type="button" class="linkbtn" data-week="${iso(m)}">`}Semaine ${isoWeek(m)}<span class="cw">${m.getDate()} ${MONTHS[m.getMonth()]} – ${f.getDate()} ${MONTHS[f.getMonth()]}</span>${SCREEN ? "" : `<span class="sr-only"> : ouvrir cette semaine</span></button>`}</th>`; }).join("");
+    const foot = rows.length > 1 ? `<tfoot><tr><th scope="row">Équipe</th>${tot.map(t => `<td class="lvl-${lvlOf(t.sum, t.cap)}"><span class="cv">${durLabel(t.sum)} / ${durLabel(t.cap)}</span><span class="cp">${pctTxt(t.sum, t.cap)}</span></td>`).join("")}</tr></tfoot>` : "";
+    $("chargebody").innerHTML = `<table class="charge"><caption class="sr-only">Heures prévues sur heures disponibles, par personne, pour les ${CHARGE_WEEKS} semaines à partir du ${fmtShort(monday)}</caption>
+      <thead><tr><td></td>${head}</tr></thead><tbody>${body}</tbody>${foot}</table>`;
+  }
+  const fh2 = s => +s.slice(0, 2) + " h" + (s.slice(3) === "00" ? "" : " " + s.slice(3));
 
   // ---- fenêtre d'édition ----
   let editing = null;
@@ -792,6 +896,8 @@
       $("f-model-row").hidden = !!t.id || !modeles.length;
       clientInfo();
     }
+    document.querySelectorAll("#form .la").forEach(el => { el.hidden = !HAS_PRIO; });
+    $("f-prio").checked = t.prio === "haute"; $("f-echeance").value = t.echeance || "";
     loadHistory(t);
     syncDurs();
     $("ferr").hidden = true;
@@ -894,7 +1000,7 @@
   $("f-dup").addEventListener("click", () => {
     const src = editing;
     openForm({ title: src.title, client: src.client, client_id: src.client_id, people: src.people.slice(), date: src.date, dur: src.dur, debut: src.debut, fin: src.fin,
-      kind: src.kind, lieu: src.lieu, notes: src.notes, fin_date: src.fin_date });
+      kind: src.kind, lieu: src.lieu, notes: src.notes, fin_date: src.fin_date, prio: src.prio, echeance: src.echeance });
     $("ftitle").textContent = "Copie de la tâche";
   });
   $("f-del-series").addEventListener("click", () => {
@@ -939,6 +1045,7 @@
       if (db) data.dur = (toMin(fn) - toMin(db)) / 60;
     }
     if (editing.id) data.done = $("f-done").checked;
+    if (HAS_PRIO) { data.prio = $("f-prio").checked ? "haute" : null; data.echeance = $("f-echeance").value || null; }
     if (HAS_LOT2) {
       data.kind = (document.querySelector("input[name=f-kind]:checked") || {}).value || "client";
       data.status = editing.id ? $("f-status").value : "planifiee";
@@ -1025,7 +1132,8 @@
     if (t.status != null && !own(STATUS, t.status)) return "statut inconnu";
     if (t.rep != null && !own(REP_LABEL, t.rep)) return "répétition inconnue";
     if (t.lieu != null && t.lieu !== "site" && t.lieu !== "distance") return "lieu inconnu";
-    for (const k of ["date", "fin_date", "reporte_de"]) if (t[k] != null && !okDate(t[k])) return "date « " + k + " » invalide";
+    if (t.prio != null && t.prio !== "haute") return "priorité inconnue";
+    for (const k of ["date", "fin_date", "reporte_de", "echeance"]) if (t[k] != null && !okDate(t[k])) return "date « " + k + " » invalide";
     for (const k of ["debut", "fin"]) if (t[k] != null && !okTime(t[k])) return "heure « " + k + " » invalide";
     if (t.dur != null && (typeof t.dur !== "number" || !Number.isFinite(t.dur) || t.dur < 0.25 || t.dur > MAX_DUR)) return "durée invalide";
     if (t.done != null && typeof t.done !== "boolean") return "case « faite » invalide";
@@ -1090,6 +1198,8 @@
     if (tab && !SCREEN) { view = tab.dataset.view; try { localStorage.setItem(KEY + "-view", view); } catch (_) {} render(); return; }
     const go = e.target.closest("[data-goto]");
     if (go) { const [pid, di] = go.dataset.goto.split("|"); monday = mondayOf(parse(di)); const r = shownRows().findIndex(p => p.id === pid); render(); focusCell(r, (parse(di).getDay() + 6) % 7); return; }
+    const wk = e.target.closest("[data-week]");
+    if (wk) { monday = parse(wk.dataset.week); view = "grid"; try { localStorage.setItem(KEY + "-view", view); } catch (_) {} render(); $("tab-grid").focus(); announce("Semaine du " + $("weeklabel").textContent); return; }
     const chip = e.target.closest("[data-filter]");
     if (chip) { filter = chip.dataset.filter; render(); return; }
     const take = e.target.closest("[data-take]");
@@ -1156,8 +1266,8 @@
     const rows = shownRows();
     if (kb.r === rows.length) return "Tâches à prendre.";
     const p = rows[kb.r], di = iso(addDays(monday, kb.c));
-    const sum = state.tasks.filter(t => occursOn(t, di) && counts(t) && t.people.includes(p.id) && t.id !== kb.id).reduce((s, t) => s + t.dur, 0);
-    return p.name + ", " + dayLabel(di) + " : " + durLabel(sum) + " déjà prévues sur " + DAY_H + " h.";
+    const L = dayLoad(p, di, kb.id);
+    return p.name + ", " + dayLabel(di) + " : " + durLabel(L.sum) + " déjà prévues sur " + durLabel(L.cap) + " disponibles.";
   }
   function showTarget() { render(); announce(describeTarget()); }
   function grab(el) {
@@ -1299,6 +1409,8 @@
     HAS_TIMES = !probe.error;
     const l2 = await sb.from("tasks").select(LOT2.join(",")).limit(1);
     HAS_LOT2 = !l2.error;
+    const pr = await sb.from("tasks").select(PRIO_COLS.join(",")).limit(1);
+    HAS_PRIO = !pr.error;
     await loadRefs();
     const hist = await sb.from("historique").select("id").limit(1);
     HAS_HISTORY = !hist.error;
@@ -1323,6 +1435,8 @@
     window.addEventListener("online", refresh);
     document.addEventListener("visibilitychange", refresh);
     // passage au jour suivant : la colonne « aujourd'hui » avance, et l'écran mural suit la semaine en cours
+    // vue « Aujourd'hui » : la tâche en cours avance avec l'heure (sans voler le focus d'une case cochée)
+    setInterval(() => { if (view === "day" && !dlg && !kb && !drag && !$("dayview").contains(document.activeElement)) render(); }, 60000);
     let dayShown = iso(new Date());
     setInterval(() => {
       if (iso(new Date()) === dayShown) return;
