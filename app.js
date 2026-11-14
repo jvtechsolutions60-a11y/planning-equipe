@@ -64,7 +64,7 @@
   // priorité et échéance : colonnes ajoutées par supabase/priorites.sql
   const PRIO_COLS = ["prio", "echeance"];
   const LOT2 = ["kind", "status", "notes", "lieu", "client_id", "fin_date", "reporte_de"];
-  const KINDS = { client: "Intervention client", interne: "Tâche interne", formation: "Formation", absence: "Absence", conge: "Congé" };
+  const KINDS = { client: "Intervention client", interne: "Tâche interne", formation: "Formation ou école", absence: "Absence", conge: "Congé" };
   const KIND_SHORT = { client: "", interne: "Interne", formation: "Formation", absence: "Absence", conge: "Congé" };
   const STATUS = { planifiee: "Planifiée", en_cours: "En cours", terminee: "Terminée", reportee: "Reportée", attente: "En attente (matériel ou client)", a_revoir: "À revoir (nouvelle visite)", annulee: "Annulée" };
   const STATUS_SHORT = { en_cours: "En cours", reportee: "Reportée", attente: "En attente", a_revoir: "À revoir", annulee: "Annulée" };
@@ -77,6 +77,17 @@
   const offWeek = t => !!t.date && !weekday(t.date) && !(t.fin_date && t.fin_date > t.date);
   const inBacklog = t => !t.people.length || !t.date || offWeek(t);
   const occursOn = (t, di) => !!t.date && (t.date === di || (!!t.fin_date && t.fin_date > t.date && di > t.date && di <= t.fin_date && weekday(di)));
+  // charge d'une journée : heures prévues et heures disponibles (journée du contrat moins congés et absences)
+  function dayLoad(p, di, exceptId) {
+    const ts = state.tasks.filter(t => occursOn(t, di) && t.people.includes(p.id) && t.status !== "annulee" && t.id !== exceptId);
+    const wd = (parse(di).getDay() + 6) % 7, share = wd < 5 && p.jours ? p.jours[wd] : 1, full = share * DAY_H;
+    const offs = ts.filter(isOff), offH = offs.reduce((s, t) => s + t.dur, 0);
+    const sum = ts.filter(counts).reduce((s, t) => s + t.dur, 0), cap = Math.max(0, full - offH);
+    // niveau de la jauge : libre, ok (moins de 85 %), plein (85 à 100 %), dépassé ; « off » = aucune heure disponible
+    const lvl = sum > cap ? "over" : cap === 0 ? "off" : sum === 0 ? "free" : sum >= cap * 0.85 ? "full" : "ok";
+    return { sum, cap, full, share, offs, offH, lvl };
+  }
+  const LVL_TXT = { free: "libre", ok: "ok", full: "presque plein", over: "dépassé", off: "pas disponible" };
   function dayRank(t, di) {
     if (!t.fin_date || t.fin_date <= t.date) return null;
     let n = 0, k = 0;
@@ -142,7 +153,10 @@
         const mins = of(d).reduce((s, t) => s + workMin(t), 0);
         week += mins; if (mins) daysWorked++;
         const offs = all(d).filter(isOff), wd = (parse(d).getDay() + 6) % 7, share = wd < 5 && p.jours ? p.jours[wd] : 1;
-        if (offs.length && mins) add("fort", d, "Pendant : " + KIND_SHORT[offs[0].kind].toLowerCase(), "travail prévu pendant « " + offs[0].title + " » (" + KIND_SHORT[offs[0].kind].toLowerCase() + ").");
+        // une absence d'une journée entière interdit tout travail ; une absence partielle laisse le reste de la journée
+        const offMin = offs.reduce((s, t) => s + workMin(t), 0);
+        if (offs.length && mins && offMin >= share * DAY_H * 60) add("fort", d, "Pendant : " + KIND_SHORT[offs[0].kind].toLowerCase(), "travail prévu pendant « " + offs[0].title + " » (" + KIND_SHORT[offs[0].kind].toLowerCase() + ").");
+        else if (offs.length && mins > share * DAY_H * 60 - offMin) add("info", d, "Plus que le temps restant", durLabel(mins / 60) + " de travail prévues alors que « " + offs[0].title + " » laisse " + durLabel(Math.max(0, share * DAY_H * 60 - offMin) / 60) + ".");
         if (mins && share === 0) add("fort", d, "Jour non travaillé", "travail prévu un jour non travaillé.");
         else if (mins > share * DAY_H * 60 && share < 1) add("info", d, "Demi-journée", durLabel(mins / 60) + " prévues sur une demi-journée de travail.");
         if (mins > L.jour) add("fort", d, "Plus de " + L.jour / 60 + " h de travail", durLabel(mins / 60) + " de travail, au-delà du maximum de " + L.jour / 60 + " h par jour.");
@@ -310,11 +324,11 @@
   const currentMonday = () => { const d = new Date(); return SCREEN && (d.getDay() === 0 || d.getDay() === 6) ? addDays(mondayOf(d), 7) : mondayOf(d); };
   let monday = currentMonday();
   let view = "grid", filter = "all";
-  const VUE_PARAM = { liste: "list", jour: "day" }, PARAM_VUE = { list: "liste", day: "jour" };
+  const VUE_PARAM = { liste: "list", jour: "day", charge: "charge" }, PARAM_VUE = { list: "liste", day: "jour", charge: "charge" };
   if (SCREEN) view = VUE_PARAM[params.get("vue")] || "grid";
   else {
     try { view = localStorage.getItem(KEY + "-view") || ""; } catch (e) { view = ""; }
-    if (!["grid", "list", "day"].includes(view)) view = "";
+    if (!["grid", "list", "day", "charge"].includes(view)) view = "";
     if (!view) view = window.matchMedia && matchMedia("(max-width: 700px)").matches ? "list" : "grid";
   }
 
@@ -665,28 +679,31 @@
     grid.style.setProperty("--rows", rows.length);
     rows.forEach((p, r) => {
       const mine = state.tasks.filter(t => t.people.includes(p.id) && weekIsos.some(di => occursOn(t, di)));
-      const total = weekIsos.reduce((s, di) => s + mine.filter(t => occursOn(t, di) && counts(t)).reduce((a, t) => a + t.dur, 0), 0);
-      const pct = Math.min(100, total / p.base * 100);
+      const loads = weekIsos.map(di => dayLoad(p, di));
+      const total = loads.reduce((s, l) => s + l.sum, 0), capW = loads.reduce((s, l) => s + l.cap, 0), offW = loads.reduce((s, l) => s + Math.min(l.full, l.offH), 0);
+      const pct = capW ? Math.min(100, total / capW * 100) : (total ? 100 : 0);
       const isMe = p.id === state.me && !SCREEN;
       const extra = total - p.base;
       html += `<div class="row" role="row" aria-rowindex="${r + 2}"><div class="person${isMe ? " is-me" : ""}" role="rowheader" aria-colindex="1" style="--pc:${p.color};--ps:${p.soft}">
         <span class="pname"><span class="dot" aria-hidden="true"></span>${p.name}${isMe ? ` <span class="you">(vous)</span>` : ""}</span>
-        <span class="load${extra > 0 ? " over" : ""}">${durLabel(total)} / ${p.base} h</span>
+        <span class="load${extra > 0 || total > capW ? " over" : ""}">${durLabel(total)} / ${durLabel(capW)}</span>
+        ${offW ? `<span class="offw">${durLabel(offW)} d'absence ou de congé</span>` : ""}
         ${extra > 0 ? `<span class="sup">+ ${durLabel(extra)} ${p.base >= 35 ? "supplémentaires" : "complémentaires"}</span>` : ""}
-        <span class="bar${extra > 0 ? " over" : ""}" aria-hidden="true"><i style="width:${pct}%"></i></span>
+        <span class="bar${extra > 0 || total > capW ? " over" : ""}" aria-hidden="true"><i style="width:${pct}%"></i></span>
       </div>`;
       weekIsos.forEach((di, c) => {
         const ts = mine.filter(t => occursOn(t, di)).sort(byOrder);
-        const sum = ts.filter(counts).reduce((s, t) => s + t.dur, 0);
-        const share = p.jours ? p.jours[c] : 1, cap = DAY_H * share;
+        const L = loads[c], sum = L.sum, share = L.share, cap = L.cap;
         const al = shownAlerts.filter(x => x.pid === p.id && x.date === di);
         const strong = al.some(x => x.niv === "fort");
         const target = kb && kb.r === r && kb.c === c;
         const active = G && r === cur.r && c === cur.c;
         html += `<div class="cell${sum > cap && share > 0 ? " over" : ""}${share === 0 ? " nowork" : ""}${strong ? " alert" : ""}${di === todayIso ? " today" : ""}${target ? " kb-target" : ""}" role="${G ? "gridcell" : "cell"}" aria-colindex="${c + 2}"${G ? ` tabindex="${active ? 0 : -1}"` : ""} data-r="${r}" data-c="${c}" data-drop="cell" data-person="${p.id}" data-date="${di}">
           ${share < 1 ? `<span class="daynote">${share === 0 ? "Non travaillé" : "Demi-journée"}</span>` : ""}
+          ${share > 0 && L.offs.length && cap === 0 ? `<span class="daynote">${esc(KIND_SHORT[L.offs[0].kind])} toute la journée</span>` : ""}
           ${ts.map(t => taskHTML(t, p.id, di)).join("")}
-          ${sum ? `<span class="flag${sum > cap ? " over" : ""}">${sum > cap ? "Surchargé : " : ""}${durLabel(sum)} / ${durLabel(cap)}</span>` : ""}
+          ${sum || (L.offs.length && cap > 0) ? `<span class="flag lvl-${L.lvl}">${sum > cap ? "Surchargé : " : ""}${durLabel(sum)} / ${durLabel(cap)}${cap > sum ? ` · libre ${durLabel(cap - sum)}` : ""}</span>
+          <span class="dbar lvl-${L.lvl}" aria-hidden="true"><i style="width:${cap ? Math.min(100, sum / cap * 100) : 100}%"></i></span>` : ""}
           ${al.length ? `<ul class="alerts">${al.map(x => `<li class="${x.niv === "fort" ? "" : "minor"}"><span aria-hidden="true">⚠ </span>${esc(x.court)}</li>`).join("")}</ul>` : ""}
           ${SCREEN ? "" : `<button type="button" class="add" tabindex="-1" data-person="${p.id}" data-date="${di}" aria-haspopup="dialog" aria-label="Ajouter une tâche pour ${p.name}, ${DAYS[c].toLowerCase()} ${fmtShort(days[c])}"><span aria-hidden="true">+</span> Ajouter</button>`}
         </div>`;
@@ -704,10 +721,12 @@
     renderSummary(weekIsos);
     renderList(days);
     renderDay();
+    renderCharge();
     $("mainview").hidden = view !== "grid";
     $("listview").hidden = view !== "list";
     $("dayview").hidden = view !== "day";
-    ["grid", "list", "day"].forEach(v => $("tab-" + v).setAttribute("aria-pressed", view === v));
+    $("chargeview").hidden = view !== "charge";
+    ["grid", "list", "day", "charge"].forEach(v => $("tab-" + v).setAttribute("aria-pressed", view === v));
 
     // retour du focus au même endroit (même tâche, même bouton ou même case)
     if (kb) {
@@ -808,6 +827,28 @@
         ${soon.length ? `<h4>À rendre bientôt</h4><ul class="dsoon">${soon.map(t => `<li class="${dueInfo(t).cls}">${esc(t.title)} : ${esc(dueInfo(t).txt.toLowerCase())}</li>`).join("")}</ul>` : ""}
       </section>`;
     }).join("");
+  }
+  // ---- plan de charge sur 4 semaines : heures prévues sur heures disponibles, par personne et par semaine ----
+  const CHARGE_WEEKS = 4;
+  function renderCharge() {
+    const weeks = [...Array(CHARGE_WEEKS)].map((_, k) => addDays(monday, 7 * k)), rows = shownRows();
+    const daysOf = m => [0, 1, 2, 3, 4].map(i => iso(addDays(m, i)));
+    const pctTxt = (sum, cap) => cap ? Math.round(sum / cap * 100) + " %" : sum ? "aucune heure disponible" : "absent";
+    const lvlOf = (sum, cap) => sum > cap ? "over" : cap === 0 ? "off" : sum === 0 ? "free" : sum >= cap * 0.85 ? "full" : "ok";
+    const tot = weeks.map(() => ({ sum: 0, cap: 0 }));
+    const body = rows.map(p => `<tr><th scope="row"><span class="pname" style="--pc:${p.color}"><span class="dot" aria-hidden="true"></span>${p.name}</span></th>${weeks.map((m, k) => {
+      const L = daysOf(m).map(di => dayLoad(p, di)), sum = L.reduce((s, l) => s + l.sum, 0), cap = L.reduce((s, l) => s + l.cap, 0), lvl = lvlOf(sum, cap);
+      tot[k].sum += sum; tot[k].cap += cap;
+      const detail = L.map((l, i) => DAYS[i].toLowerCase() + " " + durLabel(l.sum) + " sur " + durLabel(l.cap) + " (" + LVL_TXT[l.lvl] + ")").join(", ");
+      return `<td class="lvl-${lvl}"><span class="cv">${durLabel(sum)} / ${durLabel(cap)}</span><span class="cp">${pctTxt(sum, cap)}${cap > sum ? ` · libre ${durLabel(cap - sum)}` : ""}</span>
+        <span class="dbar lvl-${lvl}" aria-hidden="true"><i style="width:${cap ? Math.min(100, sum / cap * 100) : 100}%"></i></span>
+        <span class="cdays" aria-hidden="true">${L.map((l, i) => `<i class="lvl-${l.lvl}" title="${DAYS[i]} : ${durLabel(l.sum)} / ${durLabel(l.cap)}"></i>`).join("")}</span>
+        <span class="sr-only">Par jour : ${detail}.</span></td>`;
+    }).join("")}</tr>`).join("");
+    const head = weeks.map(m => { const f = addDays(m, 4); return `<th scope="col">${SCREEN ? "" : `<button type="button" class="linkbtn" data-week="${iso(m)}">`}Semaine ${isoWeek(m)}<span class="cw">${m.getDate()} ${MONTHS[m.getMonth()]} – ${f.getDate()} ${MONTHS[f.getMonth()]}</span>${SCREEN ? "" : `<span class="sr-only"> : ouvrir cette semaine</span></button>`}</th>`; }).join("");
+    const foot = rows.length > 1 ? `<tfoot><tr><th scope="row">Équipe</th>${tot.map(t => `<td class="lvl-${lvlOf(t.sum, t.cap)}"><span class="cv">${durLabel(t.sum)} / ${durLabel(t.cap)}</span><span class="cp">${pctTxt(t.sum, t.cap)}</span></td>`).join("")}</tr></tfoot>` : "";
+    $("chargebody").innerHTML = `<table class="charge"><caption class="sr-only">Heures prévues sur heures disponibles, par personne, pour les ${CHARGE_WEEKS} semaines à partir du ${fmtShort(monday)}</caption>
+      <thead><tr><td></td>${head}</tr></thead><tbody>${body}</tbody>${foot}</table>`;
   }
   const fh2 = s => +s.slice(0, 2) + " h" + (s.slice(3) === "00" ? "" : " " + s.slice(3));
 
@@ -1157,6 +1198,8 @@
     if (tab && !SCREEN) { view = tab.dataset.view; try { localStorage.setItem(KEY + "-view", view); } catch (_) {} render(); return; }
     const go = e.target.closest("[data-goto]");
     if (go) { const [pid, di] = go.dataset.goto.split("|"); monday = mondayOf(parse(di)); const r = shownRows().findIndex(p => p.id === pid); render(); focusCell(r, (parse(di).getDay() + 6) % 7); return; }
+    const wk = e.target.closest("[data-week]");
+    if (wk) { monday = parse(wk.dataset.week); view = "grid"; try { localStorage.setItem(KEY + "-view", view); } catch (_) {} render(); $("tab-grid").focus(); announce("Semaine du " + $("weeklabel").textContent); return; }
     const chip = e.target.closest("[data-filter]");
     if (chip) { filter = chip.dataset.filter; render(); return; }
     const take = e.target.closest("[data-take]");
@@ -1223,8 +1266,8 @@
     const rows = shownRows();
     if (kb.r === rows.length) return "Tâches à prendre.";
     const p = rows[kb.r], di = iso(addDays(monday, kb.c));
-    const sum = state.tasks.filter(t => occursOn(t, di) && counts(t) && t.people.includes(p.id) && t.id !== kb.id).reduce((s, t) => s + t.dur, 0);
-    return p.name + ", " + dayLabel(di) + " : " + durLabel(sum) + " déjà prévues sur " + DAY_H + " h.";
+    const L = dayLoad(p, di, kb.id);
+    return p.name + ", " + dayLabel(di) + " : " + durLabel(L.sum) + " déjà prévues sur " + durLabel(L.cap) + " disponibles.";
   }
   function showTarget() { render(); announce(describeTarget()); }
   function grab(el) {

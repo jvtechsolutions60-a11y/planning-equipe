@@ -70,6 +70,9 @@ Le code est dans `scripts/recap-hebdo.mjs` et `.github/workflows/recap-hebdo.yml
 - **Liste de la semaine** : onglet du même nom, avec les tâches à cocher une fois faites.
 - **Aujourd'hui** : onglet qui montre, pour chacun, la tâche en cours (ou la première à faire), la suivante, toute la journée à cocher et les échéances des 3 prochains jours. Sa propre carte est en premier.
 - **Prioritaire et échéance** : dans la fiche d'une tâche, « Prioritaire » la place en tête de sa journée (badge rouge) et « À rendre pour le » ajoute une échéance, qui passe en orange 3 jours avant et en rouge une fois dépassée (rappelée aussi dans « Points de vigilance »). Ces deux champs apparaissent une fois `supabase/priorites.sql` passé dans Supabase (SQL Editor > New query > coller > Run).
+- **Jauge de charge** : sous chaque journée, les heures prévues sur les heures disponibles, avec une barre verte (moins de 85 %), orange (85 à 100 %) ou rouge (dépassé). Un congé ou une absence retire ses heures de la journée : une absence d'une demi-journée laisse 3 h 30 à planifier.
+- **Plan de charge** : onglet qui montre 4 semaines d'un coup (à partir de la semaine affichée), par personne, avec un carré coloré par jour. Un clic sur une semaine l'ouvre dans le planning. Sur l'écran mural : `?ecran=1&vue=charge`.
+- **Jours d'école de Léo** : une tâche « École (CFA PROMEO) » de type formation par jour au centre (calendrier BTS session 2028, année 2026-2027), ajoutée par le fichier `taches/2026-11-14-ecole-leo-2026-2027.json`. Pour la 2e année, il suffira d'un fichier du même genre.
 - **Annuler** la dernière action : bouton dans le message qui s'affiche en bas.
 
 ## Écran mural

@@ -31,8 +31,8 @@
   --warn: #a11f17;
   --warn-soft: #fde7e5;
   --ok: #156139;
-  --mid: #8a4600;           /* échéance proche, journée pleine : orange foncé, 4,5:1 minimum */
-  --mid-soft: #fdf0dc;
+  --mid: #855c00;           /* échéance proche, journée pleine : orange foncé, 4,5:1 minimum */
+  --mid-soft: #fdf3d3;
   --focus: #1d4ccc;
   --p-leo: #9c4700;
   --p-julien: #0c6650;
@@ -48,7 +48,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0e131a; --surface: #161c25; --cell: #121820; --line: #283040; --control: #8b95a8; --ink: #eef1f6; --muted: #aab3c4;
-    --accent: #8ea7ff; --accent-ink: #0a1022; --accent-soft: #1d2846; --warn: #ff9b91; --warn-soft: #3a1e1e; --ok: #82e0ae; --mid: #ffc27a; --mid-soft: #3a2c14; --focus: #8ea7ff;
+    --accent: #8ea7ff; --accent-ink: #0a1022; --accent-soft: #1d2846; --warn: #ff9b91; --warn-soft: #3a1e1e; --ok: #82e0ae; --mid: #ffd166; --mid-soft: #362d10; --focus: #8ea7ff;
     --p-leo: #ffb06a; --p-julien: #6fdcbc; --p-justine: #cfa6ff;
     --p-leo-soft: #3a2a1a; --p-julien-soft: #15342c; --p-justine-soft: #2d2341;
     color-scheme: dark;
@@ -56,7 +56,7 @@
 }
 :root[data-theme="dark"] {
   --bg: #0e131a; --surface: #161c25; --cell: #121820; --line: #283040; --control: #8b95a8; --ink: #eef1f6; --muted: #aab3c4;
-  --accent: #8ea7ff; --accent-ink: #0a1022; --accent-soft: #1d2846; --warn: #ff9b91; --warn-soft: #3a1e1e; --ok: #82e0ae; --mid: #ffc27a; --mid-soft: #3a2c14; --focus: #8ea7ff;
+  --accent: #8ea7ff; --accent-ink: #0a1022; --accent-soft: #1d2846; --warn: #ff9b91; --warn-soft: #3a1e1e; --ok: #82e0ae; --mid: #ffd166; --mid-soft: #362d10; --focus: #8ea7ff;
   --p-leo: #ffb06a; --p-julien: #6fdcbc; --p-justine: #cfa6ff;
   --p-leo-soft: #3a2a1a; --p-julien-soft: #15342c; --p-justine-soft: #2d2341;
   color-scheme: dark;
@@ -308,6 +308,48 @@ input.sr-only:focus-visible + *, .data-actions:has(input:focus-visible) label { 
 .lrow.prio:not(.done) .lt { border-left: 3px solid var(--warn); padding-left: 0.4rem; }
 .row2.la { align-items: end; }
 
+/* jauge de charge (lot B) : vert, orange, rouge ; motif hachuré quand rien n'est disponible */
+.flag.lvl-ok, .flag.lvl-free { color: var(--ok); }
+.flag.lvl-full { color: var(--mid); font-weight: 600; }
+.flag.lvl-over { color: var(--warn); font-weight: 600; }
+.dbar { display: block; height: 0.35rem; border-radius: 999px; background: var(--surface); border: 1px solid var(--control); overflow: hidden; }
+.dbar i { display: block; height: 100%; background: var(--ok); }
+.dbar.lvl-full i { background: var(--mid); }
+.dbar.lvl-over i, .dbar.lvl-off i { background: var(--warn); }
+.cell.over .dbar { background: var(--warn-soft); }
+.offw { font-size: 0.75rem; color: var(--mid); font-weight: 600; }
+.chargeview { display: flex; flex-direction: column; gap: 0.7rem; }
+.chargeview h2 { font-size: 1.3rem; }
+.chargewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 1rem; }
+table.charge { width: 100%; border-collapse: collapse; min-width: 44rem; }
+.charge th, .charge td { padding: 0.65rem 0.8rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.charge thead th { font-size: 0.8125rem; color: var(--muted); font-weight: 600; }
+.charge thead .linkbtn { font-weight: 700; text-align: left; padding: 0; min-height: 1.5rem; }
+.charge .cw { display: block; font-family: var(--f-mono); font-weight: 500; font-size: 0.8125rem; color: var(--muted); }
+.charge tbody th, .charge tfoot th { width: 9rem; }
+.charge tfoot th, .charge tfoot td { border-bottom: 0; background: var(--cell); }
+.charge td { display: table-cell; }
+.charge .cv { display: block; font-family: var(--f-mono); font-weight: 700; font-size: 1rem; }
+.charge .cp { display: block; font-size: 0.8125rem; color: var(--muted); margin-bottom: 0.3rem; }
+.charge td.lvl-full .cv { color: var(--mid); }
+.charge td.lvl-over .cv, .charge td.lvl-over .cp { color: var(--warn); }
+.charge td.lvl-over { background: var(--warn-soft); }
+.charge td.lvl-full { background: var(--mid-soft); }
+.cdays { display: flex; gap: 0.2rem; margin-top: 0.35rem; }
+.cdays i, .clegend i { display: block; width: 1.1rem; height: 0.7rem; border-radius: 0.2rem; border: 1px solid var(--control); background: var(--surface); }
+i.lvl-ok { background: var(--ok); }
+i.lvl-full { background: var(--mid); }
+i.lvl-over { background: var(--warn); }
+i.lvl-off { background: repeating-linear-gradient(135deg, var(--control) 0 2px, var(--surface) 2px 5px); }
+.clegend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; font-size: 0.8125rem; color: var(--muted); }
+.clegend li { display: flex; align-items: center; gap: 0.4rem; }
+html.ecran .charge .cv { font-size: 1.5rem; }
+html.ecran .charge .cp, html.ecran .charge thead th { font-size: 1.05rem; }
+html.ecran .charge .cdays i { width: 2rem; height: 1.1rem; }
+html.ecran .chargeview .hint { display: none; }
+html.ecran .clegend { font-size: 1.05rem; }
+html.ecran .charge tbody th, html.ecran .charge tfoot th { font-size: 1.3rem; }
+
 /* vue « Aujourd'hui » */
 .dayview { display: flex; flex-direction: column; gap: 0.9rem; }
 .dayview h2 { font-size: 1.3rem; }
@@ -357,7 +399,7 @@ html.ecran .dtask .prio-tag { font-size: 1rem; vertical-align: 0.3em; }
 }
 
 @media (prefers-reduced-motion: reduce) { .ghost { transform: none; } * { scroll-behavior: auto !important; transition: none !important; } }
-@media (forced-colors: active) { .dot, .bar i, .sync::before { forced-color-adjust: none; } .task { border-left-width: 0.3rem; } }
+@media (forced-colors: active) { .dot, .bar i, .dbar i, .cdays i, .clegend i, .sync::before { forced-color-adjust: none; } .task { border-left-width: 0.3rem; } }
 
 /* mode écran mural (?ecran=1) : lecture seule, lisible à distance, adapté au 27 pouces */
 .clock { display: none; }
@@ -464,6 +506,7 @@ html.ecran .lday h3 { font-size: 1.4rem; }
         <button type="button" id="tab-grid" data-view="grid" aria-pressed="true">Planning</button>
         <button type="button" id="tab-list" data-view="list" aria-pressed="false">Liste de la semaine</button>
         <button type="button" id="tab-day" data-view="day" aria-pressed="false">Aujourd'hui</button>
+        <button type="button" id="tab-charge" data-view="charge" aria-pressed="false">Plan de charge</button>
       </div>
       <ul class="summary" id="summary" aria-label="Résumé de la semaine"></ul>
     </div>
@@ -477,6 +520,19 @@ html.ecran .lday h3 { font-size: 1.4rem; }
     <section class="dayview" id="dayview" hidden aria-labelledby="day-title">
       <h2 id="day-title">Aujourd'hui</h2>
       <div class="daygrid" id="daybody"></div>
+    </section>
+
+    <section class="chargeview" id="chargeview" hidden aria-labelledby="charge-title">
+      <h2 id="charge-title">Plan de charge sur 4 semaines</h2>
+      <p class="hint">Heures prévues sur heures disponibles (7 h par jour travaillé, moins les congés et absences). Une semaine s'ouvre d'un clic sur son titre. Les flèches de semaine en haut décalent les 4 semaines.</p>
+      <div class="chargewrap" id="chargebody"></div>
+      <ul class="clegend" aria-label="Légende des couleurs">
+        <li><i class="lvl-free" aria-hidden="true"></i>Libre</li>
+        <li><i class="lvl-ok" aria-hidden="true"></i>Moins de 85 %</li>
+        <li><i class="lvl-full" aria-hidden="true"></i>Presque plein (85 à 100 %)</li>
+        <li><i class="lvl-over" aria-hidden="true"></i>Dépassé</li>
+        <li><i class="lvl-off" aria-hidden="true"></i>Absent ou non travaillé</li>
+      </ul>
     </section>
 
     <div class="main" id="mainview">
@@ -514,7 +570,7 @@ html.ecran .lday h3 { font-size: 1.4rem; }
 
     <ul class="legend">
       <li>Durées en heures, sur une base de 7 h par jour et 35 h par semaine.</li>
-      <li>Un jour encadré en rouge et marqué « Surchargé » dépasse 7 h de travail.</li>
+      <li>Sous chaque journée, une jauge : verte en dessous de 85 % des heures disponibles, orange de 85 à 100 %, rouge au-delà (« Surchargé »). Un congé ou une absence retire ses heures de la journée.</li>
       <li>« Prioritaire » : tâche à faire en premier, placée en tête de la journée. Une échéance passe en orange 3 jours avant, en rouge une fois dépassée.</li>
       <li>Au clavier, dans le planning : flèches pour aller de case en case, <kbd>Entrée</kbd> pour entrer dans une case, puis <kbd>Entrée</kbd> sur une tâche pour l'ouvrir ou <kbd>Espace</kbd> pour la déplacer (flèches, puis <kbd>Entrée</kbd> pour poser, <kbd>Échap</kbd> pour annuler). <kbd>Page préc.</kbd> <kbd>Page suiv.</kbd> : semaine précédente ou suivante.</li>
     </ul>
@@ -539,6 +595,7 @@ html.ecran .lday h3 { font-size: 1.4rem; }
       <label class="chk"><input type="radio" name="scr-vue" value="grid" checked>Planning de la semaine</label>
       <label class="chk"><input type="radio" name="scr-vue" value="list">Liste par jour</label>
       <label class="chk"><input type="radio" name="scr-vue" value="day">Aujourd'hui (tâche en cours, la suivante)</label>
+      <label class="chk"><input type="radio" name="scr-vue" value="charge">Plan de charge sur 4 semaines</label>
     </div></fieldset>
     <div class="field"><label class="chk"><input type="checkbox" id="scr-voix">Ajout de tâches à la voix (micro et Google Chrome nécessaires)</label>
       <span class="hint2">On appuie sur la barre d'espace ou le bouton d'une télécommande de présentation, on dit par exemple « Julien jeudi 8 h 30 10 h 30 Dunkerque », puis on appuie à nouveau pour valider. La phrase est transcrite par le service de reconnaissance vocale de Chrome (Google).</span></div>
