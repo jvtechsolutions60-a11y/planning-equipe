@@ -336,6 +336,29 @@ html.ecran .pname { font-size: 1.35rem; }
 html.ecran .lrow input { display: none; }
 html.ecran .lrow { grid-template-columns: minmax(0, 1fr) auto auto; cursor: default; font-size: 1.2rem; }
 html.ecran .lday h3 { font-size: 1.4rem; }
+
+/* ajout à la voix sur l'écran mural (?ecran=1&voix=1) */
+.voix { position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%); width: min(60rem, calc(100vw - 2rem)); z-index: 50;
+  background: var(--surface); color: var(--ink); border: 3px solid var(--accent); border-radius: 1rem; padding: 1.2rem 1.6rem; box-shadow: 0 1rem 3rem rgb(0 0 0 / 0.35); }
+.voix-etat { margin: 0; font-size: 1.6rem; font-weight: 700; display: flex; align-items: center; gap: 0.7rem; }
+.voix.ecoute .voix-etat::before { content: ""; width: 1.1rem; height: 1.1rem; border-radius: 50%; background: #d12d2d; animation: voix-pulse 1s ease-in-out infinite; }
+@keyframes voix-pulse { 50% { opacity: 0.3; } }
+.voix-dit { margin: 0.5rem 0 0; font-size: 1.3rem; font-style: italic; }
+.voix-dit:empty { display: none; }
+.voix-tache { margin-top: 0.8rem; font-size: 1.5rem; }
+.voix-tache dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; margin: 0; }
+.voix-tache dt { font-weight: 600; color: var(--muted); }
+.voix-tache dd { margin: 0; font-weight: 700; }
+.voix-tache .devine { font-weight: 400; font-style: italic; }
+.voix-tache .alerte { margin: 0.7rem 0 0; padding: 0.5rem 0.8rem; border-radius: 0.5rem; background: var(--warn-soft, #fde8e8); color: var(--ink); font-size: 1.15rem; }
+.voix.manque { border-color: var(--warn, #b42318); }
+.voix.ok { border-color: var(--ok, #15803d); }
+.voix-aide { margin: 0.8rem 0 0; font-size: 1.1rem; color: var(--muted); }
+.voix-aide:empty { display: none; }
+.voix.repos { left: auto; right: 1rem; bottom: 1rem; transform: none; width: auto; max-width: 24rem; padding: 0.5rem 0.9rem; border-width: 2px; opacity: 0.9; box-shadow: none; }
+.voix.repos .voix-etat { font-size: 1.05rem; }
+.voix.repos .voix-aide { margin-top: 0.2rem; font-size: 0.85rem; }
+@media (prefers-reduced-motion: reduce) { .voix.ecoute .voix-etat::before { animation: none; } }
 </style>
 </head>
 <body>
@@ -442,6 +465,12 @@ html.ecran .lday h3 { font-size: 1.4rem; }
   </main>
 </div>
 
+<section class="voix" id="voix" hidden aria-labelledby="voix-etat">
+  <p class="voix-etat" id="voix-etat" role="status"></p>
+  <p class="voix-dit" id="voix-dit"></p>
+  <div class="voix-tache" id="voix-tache" hidden></div>
+  <p class="voix-aide" id="voix-aide"></p>
+</section>
 <div id="annonce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 <div class="toast" id="toast" hidden><span id="toastmsg"></span><button type="button" id="undo">Annuler</button><button type="button" class="close" id="toast-close" aria-label="Fermer le message"><span aria-hidden="true">×</span></button></div>
 
@@ -454,6 +483,8 @@ html.ecran .lday h3 { font-size: 1.4rem; }
       <label class="chk"><input type="radio" name="scr-vue" value="grid" checked>Planning de la semaine</label>
       <label class="chk"><input type="radio" name="scr-vue" value="list">Liste par jour</label>
     </div></fieldset>
+    <div class="field"><label class="chk"><input type="checkbox" id="scr-voix">Ajout de tâches à la voix (micro et Google Chrome nécessaires)</label>
+      <span class="hint2">On appuie sur la barre d'espace ou le bouton d'une télécommande de présentation, on dit par exemple « Julien jeudi 8 h 30 10 h 30 Dunkerque », puis on appuie à nouveau pour valider. La phrase est transcrite par le service de reconnaissance vocale de Chrome (Google).</span></div>
     <div class="field"><label for="scr-url">Adresse à ouvrir au démarrage de l'écran (facultatif)</label>
       <div class="qadd"><input id="scr-url" readonly><button type="button" class="btn" id="scr-copy">Copier</button></div>
       <span class="hint2" id="scr-copied" aria-live="polite"></span></div>
@@ -525,7 +556,8 @@ html.ecran .lday h3 { font-size: 1.4rem; }
 <!-- client Supabase copié dans le dépôt : aucune dépendance à un serveur tiers au chargement -->
 <script src="vendor/supabase-js-2.117.3.js"></script>
 <script src="config.js"></script>
-<script src="app.js?v=20261110"></script>
+<script src="voix.js?v=20261112"></script>
+<script src="app.js?v=20261112"></script>
 
 </body>
 </html>

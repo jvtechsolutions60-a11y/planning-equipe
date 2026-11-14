@@ -91,6 +91,30 @@ Mise en place, une fois :
 2. Ouvrez l'adresse avec `?ecran=1` en plein écran (touche F11), ou réglez le navigateur pour l'ouvrir au démarrage en mode kiosque, par exemple `chromium --kiosk "https://…/planning-equipe/?ecran=1&qui=leo"`.
 3. Désactivez la mise en veille de l'écran dans les réglages de l'appareil.
 
+## Planning à la voix sur l'écran mural
+
+Ajoutez `&voix=1` à l'adresse de l'écran (ou cochez « Ajout de tâches à la voix » dans la fenêtre **Mode écran**), par exemple `…/planning-equipe/?ecran=1&voix=1`. Un petit encadré « 🎤 Planning à la voix » apparaît en bas à droite. Un seul bouton sert à tout : barre d'espace, Entrée, ou bouton « suivant » d'une télécommande de présentation. Touche « précédent » (ou flèche gauche, Retour arrière) pour annuler.
+
+**Ajouter une tâche**
+
+1. On appuie sur le bouton.
+2. On dit la tâche, par exemple « Julien jeudi 8 h 30 10 h 30 Dunkerque », « Léo et Justine demain de 14 h à 16 h installation chez Foyette », « tout le monde lundi de 9 h à midi réunion », « Justine le 19 novembre toute la journée formation », « Léo vendredi à 9 h pendant 2 heures maintenance Calais ».
+3. L'écran affiche ce qu'il a compris (qui, jour, heure, tâche) et prévient s'il y a un chevauchement ou un dépassement d'horaires.
+4. On appuie de nouveau pour enregistrer. Sans rien faire, la proposition s'efface au bout de 20 secondes et rien n'est enregistré.
+
+Ce qui est compris : les prénoms (et « tout le monde »), aujourd'hui, demain, après-demain, un jour de la semaine (« jeudi », « jeudi 19 », « mardi semaine prochaine »), une date (« le 19 novembre », « 3/12 »), un créneau (« 8 h 30 10 h 30 », « de 14 h à 16 h », « à 9 h pendant 2 heures », « midi »), « toute la journée », « demi-journée ». Le reste de la phrase devient le nom de la tâche. Les mots formation, congé, absence ou atelier donnent le type de tâche. La phrase dite est gardée dans les notes de la tâche.
+
+**Demander son programme** : « Qu'est-ce que je fais aujourd'hui ? » (ou « qu'est-ce que Léo fait demain ? »). L'écran affiche les tâches et les lit à voix haute (haut-parleurs ou son de l'écran). Sans prénom, ce sont les plannings affichés sur l'écran.
+
+**Terminer une tâche** : « J'ai fini Dunkerque » (ou « Léo a terminé l'inventaire »). L'écran retrouve la tâche du jour par son nom et propose de la marquer faite ; un second appui valide.
+
+Matériel et réglages :
+
+- **Google Chrome** sur un mini PC Windows ou Linux. La reconnaissance vocale ne fonctionne pas dans Chromium (Raspberry Pi) ni dans Firefox.
+- Un micro USB ou une webcam avec micro, des haut-parleurs (ou le son de l'écran) pour la lecture à voix haute, et, si l'écran n'a pas de clavier, une télécommande de présentation sans fil (elle envoie les touches Page suiv. et Page préc.). Évitez le bouton « diaporama » de la télécommande : il envoie Échap, qui quitte le mode écran.
+- Au premier appui, Chrome demande l'autorisation d'utiliser le micro : cliquez sur « Autoriser », c'est mémorisé. En mode kiosque, où la question ne peut pas s'afficher, ouvrez d'abord une fois la page sans `--kiosk` pour donner l'autorisation.
+- Confidentialité : le micro n'écoute que pendant les quelques secondes qui suivent l'appui. La phrase est transcrite par le service de reconnaissance vocale de Chrome (serveurs de Google), puis comprise et enregistrée par le planning. La lecture à voix haute se fait sur l'ordinateur. Aucun abonnement ni clé n'est nécessaire.
+
 ## Fiabilité des données
 
 - **Où sont les données** : dans la base Supabase (PostgreSQL), pas dans le navigateur. Vider le navigateur ou changer d'ordinateur ne perd rien. Seules les adresses de la table `team` y ont accès.
@@ -163,6 +187,7 @@ La page suit le RGAA 4.1 (niveau AA) : contrastes vérifiés en thème clair et 
 |---|---|
 | `index.html` | le planning (structure et styles) |
 | `app.js` | le code du planning |
+| `voix.js` | compréhension des phrases dites sur l'écran mural |
 | `config.js` | adresse et clé publique Supabase |
 | `supabase/schema.sql` | tables, sécurité, temps réel |
 | `scripts/recap-hebdo.mjs` | email du vendredi |

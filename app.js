@@ -319,6 +319,7 @@
     ["click", "pointerdown", "keydown", "dblclick"].forEach(type => window.addEventListener(type, e => {
       if (e.target.closest && e.target.closest("#gate")) return;
       if (type === "keydown" && e.key === "Escape") { location.href = location.pathname; return; }
+      if (voix && voix.event(e, type)) return;
       e.stopPropagation(); e.preventDefault();
     }, true));
     document.addEventListener("fullscreenchange", () => { if (fsByUs && !document.fullscreenElement) location.href = location.pathname; });
@@ -329,6 +330,193 @@
     document.addEventListener("visibilitychange", keepAwake);
     const tick = () => { $("clock").textContent = hhmm(new Date()); };
     tick(); setInterval(tick, 15000);
+    if (new URLSearchParams(location.search).has("voix") && !voix) voix = setupVoix();
+  }
+
+  // ---- ajout de tâches à la voix sur l'écran mural (?ecran=1&voix=1) ----
+  // Touche d'action (Espace, Entrée, Page suiv., flèche droite ou bas : bouton « suivant » d'une télécommande de présentation) :
+  // 1re pression = parler, 2e pression après lecture = valider. Touche d'annulation : Page préc., flèche gauche ou haut, Retour arrière.
+  // Rien n'est enregistré sans la seconde pression ; sans réponse, la proposition s'efface seule.
+  let voix = null;
+  function setupVoix() {
+    const ACT = [" ", "Enter", "PageDown", "ArrowRight", "ArrowDown", "MediaPlayPause"], CANCEL = ["PageUp", "ArrowLeft", "ArrowUp", "Backspace"];
+    const WAIT = 20, panel = $("voix"), SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let mode = "repos", rec = null, prop = null, timer = null, left = 0, heard = "";
+    const fh = s => +s.slice(0, 2) + " h" + (s.slice(3) === "00" ? "" : " " + s.slice(3));
+    const set = (cls, etat, dit, aide) => {
+      panel.className = "voix " + cls; $("voix-etat").textContent = etat; $("voix-dit").textContent = dit || ""; $("voix-aide").textContent = aide || "";
+    };
+    const repos = () => {
+      clearInterval(timer); mode = "repos"; prop = null; $("voix-tache").hidden = true;
+      try { if ("speechSynthesis" in window) speechSynthesis.cancel(); } catch (_) {}
+      set("repos", "🎤 Planning à la voix", "", SR ? "Bouton ou Espace, puis : « Julien jeudi 8 h 30 10 h 30 Dunkerque », « qu'est-ce que je fais aujourd'hui ? » ou « j'ai fini Dunkerque »" : "Indisponible : il faut Google Chrome.");
+    };
+    panel.hidden = false; repos();
+    function ecouter() {
+      if (!SR) { set("manque", "Ajout à la voix indisponible", "", "Ce navigateur ne fait pas la reconnaissance vocale. Utilisez Google Chrome sur l'écran."); return; }
+      if (!state.me) { set("manque", "Connexion nécessaire", "", "Connectez l'écran avec une adresse de l'équipe pour pouvoir ajouter des tâches."); return; }
+      mode = "ecoute"; heard = ""; let alts = [];
+      rec = new SR(); rec.lang = "fr-FR"; rec.interimResults = true; rec.maxAlternatives = 3; rec.continuous = false;
+      set("ecoute", "Je vous écoute…", "", "Ajouter : qui, quel jour, l'heure, quoi. Ou : « qu'est-ce que je fais aujourd'hui ? », « j'ai fini … ». Annuler : touche retour.");
+      rec.onresult = ev => {
+        const r = ev.results[ev.results.length - 1];
+        heard = [...ev.results].map(x => x[0].transcript).join(" ").trim();
+        if (r.isFinal) alts = [...r].map(a => a.transcript.trim());
+        $("voix-dit").textContent = "« " + heard + " »";
+      };
+      rec.onerror = ev => {
+        if (mode !== "ecoute") return;
+        mode = "erreur"; clearInterval(timer);
+        const msg = ev.error === "not-allowed" || ev.error === "service-not-allowed" ? "Le micro est bloqué : autorisez-le pour ce site dans Chrome (icône à gauche de l'adresse)."
+          : ev.error === "no-speech" ? "Je n'ai rien entendu. Appuyez de nouveau pour réessayer, plus près du micro."
+          : ev.error === "audio-capture" ? "Aucun micro trouvé : vérifiez qu'il est bien branché."
+          : ev.error === "network" ? "Pas de connexion au service de reconnaissance vocale. Vérifiez internet."
+          : "La reconnaissance vocale a échoué (" + ev.error + "). Appuyez de nouveau pour réessayer.";
+        set("manque", "Rien n'a été ajouté", "", msg); setTimeout(() => { if (mode === "erreur") repos(); }, 8000);
+      };
+      rec.onend = () => {
+        rec = null;
+        if (mode !== "ecoute") return;
+        if (!heard) { set("manque", "Je n'ai rien entendu", "", "Appuyez de nouveau pour réessayer."); mode = "erreur"; setTimeout(() => { if (mode === "erreur") repos(); }, 6000); return; }
+        comprendre(alts.length ? alts : [heard]);
+      };
+      try { rec.start(); } catch (_) { repos(); }
+    }
+    // qui est concerné quand la phrase ne donne pas de prénom : la personne affichée si l'écran n'en montre qu'une, sinon tout le monde affiché
+    const shownIds = () => QUI || PEOPLE.map(p => p.id);
+    const today = () => iso(new Date());
+    const quand = di => di === today() ? "aujourd'hui" : di === iso(addDays(new Date(), 1)) ? "demain" : dayLabel(di);
+    function parler(txt) {
+      try {
+        if (!("speechSynthesis" in window)) return;
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(txt); u.lang = "fr-FR"; u.rate = 1;
+        const v = speechSynthesis.getVoices().find(x => /^fr/i.test(x.lang)); if (v) u.voice = v;
+        speechSynthesis.speak(u);
+      } catch (_) {}
+    }
+    const fin = (ms) => { mode = "fait"; setTimeout(() => { if (mode === "fait") repos(); }, ms); };
+    function comprendre(alts) {
+      const V = window.PlanningVoix, heard = alts[0], what = V.intention(heard);
+      if (what === "programme") return programme(V.parse(heard, PEOPLE, new Date()));
+      if (what === "fini") return finir(V.parse(heard, PEOPLE, new Date()), heard);
+      return comprendreAjout(alts);
+    }
+    // « qu'est-ce que je fais aujourd'hui ? » : liste affichée et lue à voix haute
+    function programme(res) {
+      const di = res.date || today(), ids = res.people.length ? res.people : shownIds();
+      const box = $("voix-tache"); box.hidden = false;
+      const parts = [], html = [];
+      ids.forEach(pid => {
+        const list = state.tasks.filter(t => occursOn(t, di) && t.people.includes(pid) && t.status !== "annulee")
+          .sort((a, b) => (a.debut || "99").localeCompare(b.debut || "99"));
+        const rest = list.filter(t => !isDone(t)), nm = person(pid).name;
+        html.push(`<dt>${esc(nm)}</dt><dd>${list.length ? list.map(t => (isDone(t) ? "✓ " : "") + (hasTime(t) ? fh(t.debut) + " " : "") + esc(t.title)).join(" · ") : "rien de prévu"}</dd>`);
+        if (!rest.length) parts.push(nm + " : " + (list.length ? "tout est fait." : "rien de prévu."));
+        else parts.push(nm + " : " + rest.map(t => (hasTime(t) ? "à " + fh(t.debut) + ", " : "") + t.title).join(". Puis ") + ".");
+      });
+      box.innerHTML = `<dl>${html.join("")}</dl>`;
+      const txt = (quand(di) === "aujourd'hui" ? "Aujourd'hui. " : quand(di).charAt(0).toUpperCase() + quand(di).slice(1) + ". ") + parts.join(" ");
+      set("ok", di === today() ? "Programme du jour" : "Programme de " + quand(di), "« " + res.heard + " »", "");
+      parler(txt); fin(25000);
+    }
+    // « j'ai fini l'audit » : on retrouve la tâche du jour, on la propose, un 2e appui la marque faite
+    function finir(res, heard) {
+      const di = res.date || today(), ids = res.people.length ? res.people : shownIds();
+      const words = window.PlanningVoix.mots(heard).filter(w => !PEOPLE.some(p => window.PlanningVoix.mots(p.name)[0] === w));
+      const cands = state.tasks.filter(t => occursOn(t, di) && t.people.some(p => ids.includes(p)) && !isDone(t) && t.status !== "annulee");
+      const score = t => { const tw = new Set(window.PlanningVoix.mots(t.title + " " + t.client)); return words.filter(w => tw.has(w) || [...tw].some(x => x.length >= 4 && (x.startsWith(w) || w.startsWith(x)))).length; };
+      const ranked = cands.map(t => ({ t, s: score(t) })).sort((a, b) => b.s - a.s);
+      const box = $("voix-tache");
+      let pick = null;
+      if (ranked.length && ranked[0].s > 0 && (ranked.length === 1 || ranked[1].s < ranked[0].s)) pick = ranked[0].t;
+      else if (ranked.length === 1 && !words.length) pick = ranked[0].t;
+      if (!pick) {
+        mode = "erreur"; box.hidden = !cands.length;
+        box.innerHTML = cands.length ? `<dl><dt>À faire</dt><dd>${cands.map(t => esc(t.title)).join(" · ")}</dd></dl>` : "";
+        set("manque", cands.length ? "Je n'ai pas trouvé quelle tâche" : "Aucune tâche à terminer " + quand(di), "« " + heard + " »",
+          cands.length ? "Redites la phrase avec le nom de la tâche, par exemple « j'ai fini " + cands[0].title + " »." : "");
+        setTimeout(() => { if (mode === "erreur") repos(); }, 12000);
+        return;
+      }
+      box.hidden = false;
+      box.innerHTML = `<dl><dt>Tâche</dt><dd>${esc(pick.title)}</dd><dt>Pour</dt><dd>${esc(names(pick.people))}</dd><dt>Jour</dt><dd>${esc(dayLabel(di))}${hasTime(pick) ? " · " + esc(fh(pick.debut) + " – " + fh(pick.fin)) : ""}</dd></dl>`;
+      prop = { done: pick.id }; mode = "propose"; left = WAIT;
+      const tic = () => set("ok", "Marquer comme faite ?", "« " + heard + " »", "Appuyez de nouveau pour VALIDER. Touche retour pour annuler. Annulation automatique dans " + left + " s.");
+      tic(); clearInterval(timer);
+      timer = setInterval(() => { left--; if (left <= 0) { repos(); announce("Annulé."); } else tic(); }, 1000);
+    }
+    function comprendreAjout(alts) {
+      // parmi les transcriptions proposées, on garde celle qui laisse le moins de choses manquantes
+      const res = alts.map(t => window.PlanningVoix.parse(t, PEOPLE, new Date())).sort((a, b) => a.missing.length - b.missing.length)[0];
+      const box = $("voix-tache"); box.hidden = false;
+      const lignes = [["Pour", res.people.length ? names(res.people) : "?"], ["Jour", res.date ? dayLabel(res.date) : "?"],
+        ["Heure", res.debut && res.fin ? fh(res.debut) + " – " + fh(res.fin) : `<span class="devine">sans heure, ${esc(durLabel(res.dur))}${res.durDevinee ? " (durée par défaut)" : ""}</span>`],
+        ["Tâche", res.title ? esc(res.title) + (res.kind && res.kind !== "client" && res.kind !== "interne" ? " (" + esc(KINDS[res.kind].toLowerCase()) + ")" : "") : "?"]];
+      if (res.debut && res.durDevinee) lignes[2][1] += ` <span class="devine">(1 h par défaut)</span>`;
+      box.innerHTML = `<dl>${lignes.map(([k, v]) => `<dt>${k}</dt><dd>${k === "Heure" || k === "Tâche" ? v : esc(v)}</dd>`).join("")}</dl>`;
+      if (res.missing.length) {
+        mode = "erreur";
+        set("manque", "Il manque : " + res.missing.join(", "), "« " + res.heard + " »", "Rien n'a été ajouté. Appuyez de nouveau et redites toute la phrase.");
+        setTimeout(() => { if (mode === "erreur") repos(); }, 12000);
+        return;
+      }
+      const t = { id: uid(), title: res.title, client: "", people: res.people, date: res.date, dur: Math.round(res.dur * 4) / 4 };
+      if (HAS_TIMES && res.debut && res.fin) { t.debut = res.debut; t.fin = res.fin; }
+      if (HAS_LOT2) { t.kind = res.kind || "interne"; t.status = "planifiee"; t.notes = "Ajoutée à la voix sur l'écran : « " + res.heard + " »"; }
+      // contrôles RH sur la semaine de la tâche, avant de la proposer
+      const wk = [0, 1, 2, 3, 4, 5, 6].map(i => iso(addDays(mondayOf(parse(t.date)), i)));
+      const key = a => a.pid + a.date + a.long, before = new Set(verifier(wk).map(key));
+      state.tasks.push(norm(t));
+      const alerts = verifier(wk).filter(a => a.niv === "fort" && !before.has(key(a)) && t.people.includes(a.pid));
+      state.tasks.pop();
+      if (alerts.length) box.insertAdjacentHTML("beforeend", `<p class="alerte"><b>Attention :</b> ${alerts.map(a => esc(a.long)).join(" ")}</p>`);
+      prop = t; mode = "propose"; left = WAIT;
+      const tic = () => set("ok", "C'est bien ça ?", "« " + res.heard + " »", "Appuyez de nouveau pour ENREGISTRER. Touche retour pour annuler. Annulation automatique dans " + left + " s.");
+      tic(); clearInterval(timer);
+      timer = setInterval(() => { left--; if (left <= 0) { repos(); announce("Ajout à la voix annulé."); } else tic(); }, 1000);
+    }
+    function valider() {
+      clearInterval(timer);
+      if (prop && prop.done) {
+        const t = state.tasks.find(x => x.id === prop.done); prop = null; $("voix-tache").hidden = true;
+        if (!t) { set("manque", "Tâche introuvable", "", "Elle a peut-être été supprimée entre-temps."); fin(6000); return; }
+        t.done = true; if (HAS_LOT2) t.status = "terminee";
+        after("« " + t.title + " » marquée comme faite.");
+        set("ok", "✓ Faite : " + t.title, names(t.people), ""); parler("Bravo, « " + t.title + " » est notée comme faite.");
+        fin(6000); return;
+      }
+      const t = prop; prop = null; state.tasks.push(norm(t));
+      const where = names(t.people) + ", " + dayLabel(t.date);
+      after("« " + t.title + " » ajoutée pour " + where + ".");
+      mode = "fait"; $("voix-tache").hidden = true;
+      const other = mondayOf(parse(t.date)).getTime() !== monday.getTime();
+      set("ok", "✓ Ajoutée : " + t.title, where + (t.debut ? ", " + fh(t.debut) + " – " + fh(t.fin) : ""), other ? "Elle apparaîtra sur le planning de la semaine du " + fmtShort(mondayOf(parse(t.date))) + "." : "");
+      setTimeout(() => { if (mode === "fait") repos(); }, 6000);
+    }
+    function action() {
+      if (mode === "ecoute") { if (rec) rec.stop(); return; }
+      if (mode === "propose") { valider(); return; }
+      ecouter();
+    }
+    function annuler() {
+      if (mode === "repos") return;
+      const r = rec; mode = "repos"; if (r) r.abort(); repos(); announce("Ajout à la voix annulé.");
+    }
+    return {
+      // renvoie true si l'événement est pris par l'ajout à la voix (le reste de l'écran reste en lecture seule)
+      event(e, type) {
+        if (dlg || !$("gate").hidden) return false;
+        if (type === "keydown") {
+          if (e.repeat || e.ctrlKey || e.altKey || e.metaKey) return false;
+          if (ACT.includes(e.key)) { e.preventDefault(); e.stopPropagation(); action(); return true; }
+          if (CANCEL.includes(e.key)) { e.preventDefault(); e.stopPropagation(); annuler(); return true; }
+          return false;
+        }
+        if (type === "click" && e.target.closest && e.target.closest("#voix")) { e.preventDefault(); e.stopPropagation(); action(); return true; }
+        return false;
+      }
+    };
   }
   if (SCREEN) setupScreen();
 
@@ -367,6 +555,7 @@
     const u = new URLSearchParams({ ecran: "1" });
     if (ids.length && ids.length < PEOPLE.length) u.set("qui", ids.join(","));
     if ($("scr-form").querySelector("input[name=scr-vue]:checked").value === "list") u.set("vue", "liste");
+    if ($("scr-voix").checked) u.set("voix", "1");
     return { ids, query: "?" + u.toString().replace(/%2C/g, ",") };
   }
   const syncScreenUrl = () => { $("scr-url").value = location.origin + location.pathname + screenUrl().query; $("scr-copied").textContent = ""; };
