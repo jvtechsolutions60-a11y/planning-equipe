@@ -22,12 +22,29 @@ jobs:
         run: |
           if [ -z "$KEY" ] || [ -z "$PASS" ]; then echo "Secrets absents : sauvegarde non configurée."; exit 0; fi
           d=$(date -u +%Y-%m-%d)
-          curl -sf "https://fjnhuytztxxpbdajvhbq.supabase.co/rest/v1/tasks?select=*" -H "apikey: $KEY" -o taches.json
-          n=$(python3 -c "import json;print(len(json.load(open('taches.json'))))")
-          echo "Tâches sauvegardées : $n"
-          python3 -c "import json,datetime;t=json.load(open('taches.json'));json.dump({'app':'planning-equipe','version':1,'exporte_le':datetime.datetime.utcnow().isoformat()+'Z','tasks':t},open('planning-sauvegarde-$d.json','w'),ensure_ascii=False)"
+          base="https://fjnhuytztxxpbdajvhbq.supabase.co/rest/v1"
+          # tâches (obligatoire), puis clients, modèles et historique s'ils existent ; lecture par pages de 1 000
+          lire() {
+            echo "[]" > "$1.json"; from=0
+            while :; do
+              curl -sf "$base/$1?select=*&order=id" -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -H "Range: $from-$((from+999))" -o page.json || return 1
+              python3 -c "import json;a=json.load(open('$1.json'));b=json.load(open('page.json'));json.dump(a+b,open('$1.json','w'));print(len(b))" > n.txt
+              [ "$(cat n.txt)" -lt 1000 ] && break; from=$((from+1000))
+            done
+          }
+          lire tasks
+          for t in clients modeles historique; do lire "$t" || echo "[]" > "$t.json"; done
+          python3 - "$d" <<'PY'
+          import json, sys, datetime
+          d = sys.argv[1]
+          out = {"app": "planning-equipe", "version": 1, "exporte_le": datetime.datetime.utcnow().isoformat() + "Z"}
+          for t, k in [("tasks", "tasks"), ("clients", "clients"), ("modeles", "modeles"), ("historique", "historique")]:
+              out[k] = json.load(open(t + ".json"))
+              print(k, len(out[k]))
+          json.dump(out, open("planning-sauvegarde-" + d + ".json", "w"), ensure_ascii=False)
+          PY
           7z a -t7z -mhe=on -p"$PASS" "planning-sauvegarde-$d.7z" "planning-sauvegarde-$d.json" > /dev/null
-          rm taches.json "planning-sauvegarde-$d.json"
+          rm -f tasks.json clients.json modeles.json historique.json page.json n.txt "planning-sauvegarde-$d.json"
       - name: Conserver 90 jours
         if: ${{ hashFiles('*.7z') != '' }}
         uses: actions/upload-artifact@v4
