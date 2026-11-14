@@ -348,7 +348,8 @@
     };
     const repos = () => {
       clearInterval(timer); mode = "repos"; prop = null; $("voix-tache").hidden = true;
-      set("repos", "🎤 Ajouter une tâche à la voix", "", SR ? "Bouton ou Espace, puis : « Julien jeudi 8 h 30 10 h 30 Dunkerque »" : "Indisponible : il faut Google Chrome.");
+      try { if ("speechSynthesis" in window) speechSynthesis.cancel(); } catch (_) {}
+      set("repos", "🎤 Planning à la voix", "", SR ? "Bouton ou Espace, puis : « Julien jeudi 8 h 30 10 h 30 Dunkerque », « qu'est-ce que je fais aujourd'hui ? » ou « j'ai fini Dunkerque »" : "Indisponible : il faut Google Chrome.");
     };
     panel.hidden = false; repos();
     function ecouter() {
@@ -356,7 +357,7 @@
       if (!state.me) { set("manque", "Connexion nécessaire", "", "Connectez l'écran avec une adresse de l'équipe pour pouvoir ajouter des tâches."); return; }
       mode = "ecoute"; heard = ""; let alts = [];
       rec = new SR(); rec.lang = "fr-FR"; rec.interimResults = true; rec.maxAlternatives = 3; rec.continuous = false;
-      set("ecoute", "Je vous écoute…", "", "Dites qui, quel jour, l'heure et quoi faire. Annuler : touche retour.");
+      set("ecoute", "Je vous écoute…", "", "Ajouter : qui, quel jour, l'heure, quoi. Ou : « qu'est-ce que je fais aujourd'hui ? », « j'ai fini … ». Annuler : touche retour.");
       rec.onresult = ev => {
         const r = ev.results[ev.results.length - 1];
         heard = [...ev.results].map(x => x[0].transcript).join(" ").trim();
@@ -381,7 +382,71 @@
       };
       try { rec.start(); } catch (_) { repos(); }
     }
+    // qui est concerné quand la phrase ne donne pas de prénom : la personne affichée si l'écran n'en montre qu'une, sinon tout le monde affiché
+    const shownIds = () => QUI || PEOPLE.map(p => p.id);
+    const today = () => iso(new Date());
+    const quand = di => di === today() ? "aujourd'hui" : di === iso(addDays(new Date(), 1)) ? "demain" : dayLabel(di);
+    function parler(txt) {
+      try {
+        if (!("speechSynthesis" in window)) return;
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(txt); u.lang = "fr-FR"; u.rate = 1;
+        const v = speechSynthesis.getVoices().find(x => /^fr/i.test(x.lang)); if (v) u.voice = v;
+        speechSynthesis.speak(u);
+      } catch (_) {}
+    }
+    const fin = (ms) => { mode = "fait"; setTimeout(() => { if (mode === "fait") repos(); }, ms); };
     function comprendre(alts) {
+      const V = window.PlanningVoix, heard = alts[0], what = V.intention(heard);
+      if (what === "programme") return programme(V.parse(heard, PEOPLE, new Date()));
+      if (what === "fini") return finir(V.parse(heard, PEOPLE, new Date()), heard);
+      return comprendreAjout(alts);
+    }
+    // « qu'est-ce que je fais aujourd'hui ? » : liste affichée et lue à voix haute
+    function programme(res) {
+      const di = res.date || today(), ids = res.people.length ? res.people : shownIds();
+      const box = $("voix-tache"); box.hidden = false;
+      const parts = [], html = [];
+      ids.forEach(pid => {
+        const list = state.tasks.filter(t => occursOn(t, di) && t.people.includes(pid) && t.status !== "annulee")
+          .sort((a, b) => (a.debut || "99").localeCompare(b.debut || "99"));
+        const rest = list.filter(t => !isDone(t)), nm = person(pid).name;
+        html.push(`<dt>${esc(nm)}</dt><dd>${list.length ? list.map(t => (isDone(t) ? "✓ " : "") + (hasTime(t) ? fh(t.debut) + " " : "") + esc(t.title)).join(" · ") : "rien de prévu"}</dd>`);
+        if (!rest.length) parts.push(nm + " : " + (list.length ? "tout est fait." : "rien de prévu."));
+        else parts.push(nm + " : " + rest.map(t => (hasTime(t) ? "à " + fh(t.debut) + ", " : "") + t.title).join(". Puis ") + ".");
+      });
+      box.innerHTML = `<dl>${html.join("")}</dl>`;
+      const txt = (quand(di) === "aujourd'hui" ? "Aujourd'hui. " : quand(di).charAt(0).toUpperCase() + quand(di).slice(1) + ". ") + parts.join(" ");
+      set("ok", di === today() ? "Programme du jour" : "Programme de " + quand(di), "« " + res.heard + " »", "");
+      parler(txt); fin(25000);
+    }
+    // « j'ai fini l'audit » : on retrouve la tâche du jour, on la propose, un 2e appui la marque faite
+    function finir(res, heard) {
+      const di = res.date || today(), ids = res.people.length ? res.people : shownIds();
+      const words = window.PlanningVoix.mots(heard).filter(w => !PEOPLE.some(p => window.PlanningVoix.mots(p.name)[0] === w));
+      const cands = state.tasks.filter(t => occursOn(t, di) && t.people.some(p => ids.includes(p)) && !isDone(t) && t.status !== "annulee");
+      const score = t => { const tw = new Set(window.PlanningVoix.mots(t.title + " " + t.client)); return words.filter(w => tw.has(w) || [...tw].some(x => x.length >= 4 && (x.startsWith(w) || w.startsWith(x)))).length; };
+      const ranked = cands.map(t => ({ t, s: score(t) })).sort((a, b) => b.s - a.s);
+      const box = $("voix-tache");
+      let pick = null;
+      if (ranked.length && ranked[0].s > 0 && (ranked.length === 1 || ranked[1].s < ranked[0].s)) pick = ranked[0].t;
+      else if (ranked.length === 1 && !words.length) pick = ranked[0].t;
+      if (!pick) {
+        mode = "erreur"; box.hidden = !cands.length;
+        box.innerHTML = cands.length ? `<dl><dt>À faire</dt><dd>${cands.map(t => esc(t.title)).join(" · ")}</dd></dl>` : "";
+        set("manque", cands.length ? "Je n'ai pas trouvé quelle tâche" : "Aucune tâche à terminer " + quand(di), "« " + heard + " »",
+          cands.length ? "Redites la phrase avec le nom de la tâche, par exemple « j'ai fini " + cands[0].title + " »." : "");
+        setTimeout(() => { if (mode === "erreur") repos(); }, 12000);
+        return;
+      }
+      box.hidden = false;
+      box.innerHTML = `<dl><dt>Tâche</dt><dd>${esc(pick.title)}</dd><dt>Pour</dt><dd>${esc(names(pick.people))}</dd><dt>Jour</dt><dd>${esc(dayLabel(di))}${hasTime(pick) ? " · " + esc(fh(pick.debut) + " – " + fh(pick.fin)) : ""}</dd></dl>`;
+      prop = { done: pick.id }; mode = "propose"; left = WAIT;
+      const tic = () => set("ok", "Marquer comme faite ?", "« " + heard + " »", "Appuyez de nouveau pour VALIDER. Touche retour pour annuler. Annulation automatique dans " + left + " s.");
+      tic(); clearInterval(timer);
+      timer = setInterval(() => { left--; if (left <= 0) { repos(); announce("Annulé."); } else tic(); }, 1000);
+    }
+    function comprendreAjout(alts) {
       // parmi les transcriptions proposées, on garde celle qui laisse le moins de choses manquantes
       const res = alts.map(t => window.PlanningVoix.parse(t, PEOPLE, new Date())).sort((a, b) => a.missing.length - b.missing.length)[0];
       const box = $("voix-tache"); box.hidden = false;
@@ -413,6 +478,14 @@
     }
     function valider() {
       clearInterval(timer);
+      if (prop && prop.done) {
+        const t = state.tasks.find(x => x.id === prop.done); prop = null; $("voix-tache").hidden = true;
+        if (!t) { set("manque", "Tâche introuvable", "", "Elle a peut-être été supprimée entre-temps."); fin(6000); return; }
+        t.done = true; if (HAS_LOT2) t.status = "terminee";
+        after("« " + t.title + " » marquée comme faite.");
+        set("ok", "✓ Faite : " + t.title, names(t.people), ""); parler("Bravo, « " + t.title + " » est notée comme faite.");
+        fin(6000); return;
+      }
       const t = prop; prop = null; state.tasks.push(norm(t));
       const where = names(t.people) + ", " + dayLabel(t.date);
       after("« " + t.title + " » ajoutée pour " + where + ".");

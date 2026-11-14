@@ -124,6 +124,18 @@
     if (!out.dur) { out.dur = out.kind === "conge" || out.kind === "absence" ? 7 : 1; out.durDevinee = true; }
     return out;
   }
-  root.PlanningVoix = { parse };
-  if (typeof module !== "undefined") module.exports = { parse };
+  // ce que la personne demande : « programme » (qu'est-ce que je fais aujourd'hui ?), « fini » (j'ai fini telle tâche) ou « ajout »
+  function intention(text) {
+    const low = strip(String(text || "").toLowerCase()).replace(/[’`]/g, "'");
+    if (/\b(j'?\s?ai|on a|il a|elle a|a|est|c'?\s?est)\s+(fini|finie|termine|terminee|boucle|bouclee)\b|\bc'?\s?est fait\b|\bmarque[rz]?\b.*\b(faite?|finie?|terminee?)\b|\b(fini|termine)\s+(la|le|l')\b/.test(low)) return "fini";
+    if (/qu'?\s?est[- ]ce que?\s|\bquoi faire\b|\bque dois[- ]je\b|\bprogramme\b|\bmes taches\b|\bses taches\b|\bson planning\b|\bmon planning\b|\bc'?\s?est quoi\b|\bon fait quoi\b|\bje fais quoi\b|\bfait quoi\b/.test(low)) return "programme";
+    return "ajout";
+  }
+  // mots utiles d'une phrase, pour retrouver une tâche par son nom (« j'ai fini l'audit de Calais » → audit, calais)
+  const VIDES = new Set("j'ai jai ai fini finie termine terminee boucle bouclee c'est cest fait faite est marque marquer comme tache la le les l' de du des un une et a au aux pour chez avec on il elle elles ils je".split(" "));
+  function mots(text) {
+    return strip(String(text || "").toLowerCase()).replace(/[’`]/g, "'").split(/[^a-z0-9']+/).map(w => w.replace(/^(l|d|j|qu)'/, "")).filter(w => w.length >= 3 && !VIDES.has(w));
+  }
+  root.PlanningVoix = { parse, intention, mots };
+  if (typeof module !== "undefined") module.exports = { parse, intention, mots };
 })(typeof window !== "undefined" ? window : globalThis);
